@@ -9,6 +9,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
+import { useAppAuth } from "@/context/auth-context";
+
+function maskEmail(email: string): string {
+  if (!email) return "";
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const masked = local.length <= 2 ? "*".repeat(local.length) : local[0] + "*".repeat(local.length - 2) + local[local.length - 1];
+  return `${masked}@${domain}`;
+}
 
 type Company = {
   company: string;
@@ -218,7 +227,7 @@ function CompanyRow({ c, analyzing, onAnalyze }: { c: Company; analyzing: boolea
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">{cust.name}</p>
-                        <p className="text-xs text-muted-foreground">{cust.email}</p>
+                        <p className="text-xs text-muted-foreground">{isCxUser ? maskEmail(cust.email) : cust.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -245,6 +254,8 @@ function CompanyRow({ c, analyzing, onAnalyze }: { c: Company; analyzing: boolea
 
 export default function Companies() {
   const { toast } = useToast();
+  const { user } = useAppAuth();
+  const isCxUser = user?.role === "cx_user";
   const queryClient = useQueryClient();
   const [analyzingCompany, setAnalyzingCompany] = useState<string | null>(null);
 

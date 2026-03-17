@@ -8,8 +8,19 @@ import { ChevronRight, User, BrainCircuit, Loader2, Sparkles, ChevronDown, Check
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useAppAuth } from "@/context/auth-context";
+
+function maskEmail(email: string): string {
+  if (!email) return "";
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const masked = local.length <= 2 ? "*".repeat(local.length) : local[0] + "*".repeat(local.length - 2) + local[local.length - 1];
+  return `${masked}@${domain}`;
+}
 
 export default function Customers() {
+  const { user } = useAppAuth();
+  const isCxUser = user?.role === "cx_user";
   const { data: customers, isLoading } = useCustomersList();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -244,7 +255,7 @@ export default function Customers() {
                     </div>
                     <div>
                       <p className="font-medium text-foreground">{customer.name}</p>
-                      <p className="text-xs text-muted-foreground">{customer.email}</p>
+                      <p className="text-xs text-muted-foreground">{isCxUser ? maskEmail(customer.email) : customer.email}</p>
                     </div>
                   </div>
                 </td>

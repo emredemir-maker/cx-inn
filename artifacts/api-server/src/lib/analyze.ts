@@ -4,6 +4,13 @@ import { eq, desc, and } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { getLearningCorrections, markLearningUsed } from "./accuracy";
 
+function stripPii(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, "[E-POSTA]")
+    .replace(/(\+?[\d][\d\s\-()]{7,}[\d])/g, "[TELEFON]");
+}
+
 export async function analyzeCustomer(customerId: number): Promise<void> {
   const cust = await db.select().from(customersTable)
     .where(eq(customersTable.id, customerId)).limit(1);
@@ -27,7 +34,7 @@ export async function analyzeCustomer(customerId: number): Promise<void> {
   }
 
   const interactionText = interactions.map((i) =>
-    `[ID:${i.id}] Tür: ${i.type} | Konu: ${i.subject} | Durum: ${i.status} | Kanal: ${i.channel}\nİçerik: ${i.content}${i.resolution ? `\nÇözüm: ${i.resolution}` : ""}`
+    `[ID:${i.id}] Tür: ${i.type} | Konu: ${stripPii(i.subject ?? "")} | Durum: ${i.status} | Kanal: ${i.channel}\nİçerik: ${stripPii(i.content ?? "")}${i.resolution ? `\nÇözüm: ${stripPii(i.resolution)}` : ""}`
   ).join("\n\n");
 
   // Fetch past prediction corrections for this customer (learning data)
