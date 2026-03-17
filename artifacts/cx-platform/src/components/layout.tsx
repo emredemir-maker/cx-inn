@@ -21,6 +21,7 @@ import {
   UserCog,
   ClipboardCheck,
   Crown,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/hooks/use-firebase-auth";
@@ -86,6 +87,7 @@ const NAV_SECTIONS: NavSection[] = [
       },
       { href: "/audit-logs", label: "Denetim Kaydı", icon: ShieldCheck },
       { href: "/settings", label: "Hesap Ayarları", icon: Settings },
+      { href: "/manual", label: "Kullanım Kılavuzu", icon: BookOpen },
     ],
   },
   {

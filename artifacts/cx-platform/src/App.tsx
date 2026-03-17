@@ -21,6 +21,7 @@ import SurveyRespond from "./pages/survey-respond";
 import SettingsPage from "./pages/settings";
 import UserManagementPage from "./pages/user-management";
 import ApprovalsPage from "./pages/approvals";
+import ManualPage from "./pages/manual";
 import LoginPage from "./pages/login";
 import NotFound from "./pages/not-found";
 
@@ -51,6 +52,7 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/user-management" component={UserManagementPage} />
       <Route path="/approvals" component={ApprovalsPage} />
+      <Route path="/manual" component={ManualPage} />
       <Route component={NotFound} />
     </Switch>
   );

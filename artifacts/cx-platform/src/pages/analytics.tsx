@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Card, PageHeader, LoadingScreen, StatusBadge } from "@/components/ui-elements";
+import { MetricInfo } from "@/components/metric-info";
 import {
   TrendingDown, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown,
   Minus, Tag, MessageCircle, Zap, BarChart2, Users, Star, Activity,
@@ -182,18 +183,20 @@ export default function Analytics() {
       {/* ─── Summary KPIs ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
             <Activity className="h-3.5 w-3.5" /> Ort. Tahmin NPS
-          </p>
+            <MetricInfo metricKey="nps" side="bottom" />
+          </div>
           <p className={cn("text-3xl font-black", npsColor(parseFloat(overall.avg_nps ?? "0")))}>
             {overall.avg_nps ?? "-"}
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">{overall.total_analyzed} etkileşim analiz edildi</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
             <Star className="h-3.5 w-3.5" /> Ort. Tahmin CSAT
-          </p>
+            <MetricInfo metricKey="csat" side="bottom" />
+          </div>
           <p className={cn("text-3xl font-black", npsColor(parseFloat(overall.avg_csat ?? "0") * 1.8))}>
             {overall.avg_csat ?? "-"}
             <span className="text-sm font-normal text-muted-foreground"> / 5</span>
@@ -201,16 +204,18 @@ export default function Analytics() {
           <p className="text-[10px] text-muted-foreground mt-1">{csatLabel(parseFloat(overall.avg_csat ?? "0"))}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5 text-red-400" /> Yüksek Churn Riski
-          </p>
+            <MetricInfo metricKey="churnRisk" side="bottom" />
+          </div>
           <p className="text-3xl font-black text-red-400">{overall.high_risk ?? "0"}</p>
           <p className="text-[10px] text-muted-foreground mt-1">müşteri kritik bölgede</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5" /> Analiz Edilen
-          </p>
+            <MetricInfo metricKey="analysisCount" side="bottom" />
+          </div>
           <p className="text-3xl font-black text-foreground">{overall.total_analyzed ?? "0"}</p>
           <p className="text-[10px] text-muted-foreground mt-1">etkileşim</p>
         </Card>
@@ -222,6 +227,7 @@ export default function Analytics() {
           <div>
             <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" /> Aylık AI Tahmin Trendi
+              <MetricInfo metricKey="monthlyTrend" side="bottom" />
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Gerçek ölçüm değil — AI'ın etkileşimlerden ürettiği aylık NPS & CSAT tahminleri
@@ -499,6 +505,7 @@ export default function Analytics() {
         <Card className="p-5">
           <h2 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-400" /> Ağrı Noktası → NPS Etkisi
+            <MetricInfo metricKey="painPoints" side="bottom" />
           </h2>
           <div className="space-y-2.5">
             {painImpact.map((item: any) => (
@@ -549,6 +556,7 @@ export default function Analytics() {
           <Card className="p-5">
             <h2 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-primary" /> Duygu Durumu → NPS Etkisi
+              <MetricInfo metricKey="sentimentDist" side="bottom" />
             </h2>
             <div className="space-y-2.5">
               {sentimentDist.map((item: any) => (
@@ -584,6 +592,7 @@ export default function Analytics() {
         <div className="p-5 border-b border-border/50">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" /> AI Tahmin Doğruluğu
+            <MetricInfo metricKey="predictionAccuracy" side="bottom" />
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Gerçek anket yanıtları ile AI tahminlerinin karşılaştırması — öğrenme döngüsü verileri

@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, PageHeader, LoadingScreen } from "@/components/ui-elements";
+import { MetricInfo } from "@/components/metric-info";
 import { useQuery } from "@tanstack/react-query";
 import {
   TrendingUp,
@@ -95,7 +96,7 @@ function useAnomalySummary() {
   });
 }
 
-function StatCard({ title, value, sub, icon: Icon, color, href }: any) {
+function StatCard({ title, value, sub, icon: Icon, color, href, metricKey }: any) {
   const content = (
     <Card className={cn(
       "p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-default",
@@ -103,7 +104,10 @@ function StatCard({ title, value, sub, icon: Icon, color, href }: any) {
     )}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
+          <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center gap-1.5">
+            {title}
+            {metricKey && <MetricInfo metricKey={metricKey} side="bottom" />}
+          </div>
           <h3 className="text-3xl font-display font-bold text-foreground">{value}</h3>
           {sub && <p className="text-xs text-muted-foreground mt-2">{sub}</p>}
         </div>
@@ -127,10 +131,10 @@ export default function Dashboard() {
   if (metricsLoading) return <Layout><LoadingScreen /></Layout>;
 
   const workflowSteps = [
-    { label: "Etkileşim Gir", count: metrics?.totalInteractions ?? 0, sub: "ticket / sohbet / çağrı", href: "/interactions", color: "primary" },
-    { label: "Açık Talep", count: metrics?.openTickets ?? 0, sub: "çözüm bekliyor", href: "/interactions", color: "warning" },
-    { label: "AI Analizi", count: metrics?.analysisCount ?? 0, sub: "NPS/CSAT tahmini", href: "/interactions", color: "success" },
-    { label: "Aktif Kampanya", count: metrics?.activeCampaigns ?? 0, sub: "anket gönderimi", href: "/campaigns", color: "primary" },
+    { label: "Etkileşim Gir", count: metrics?.totalInteractions ?? 0, sub: "ticket / sohbet / çağrı", href: "/interactions", color: "primary", metricKey: "totalInteractions" as const },
+    { label: "Açık Talep", count: metrics?.openTickets ?? 0, sub: "çözüm bekliyor", href: "/interactions", color: "warning", metricKey: "openTickets" as const },
+    { label: "AI Analizi", count: metrics?.analysisCount ?? 0, sub: "NPS/CSAT tahmini", href: "/interactions", color: "success", metricKey: "analysisCount" as const },
+    { label: "Aktif Kampanya", count: metrics?.activeCampaigns ?? 0, sub: "anket gönderimi", href: "/campaigns", color: "primary", metricKey: "activeCampaigns" as const },
   ];
 
   return (
@@ -142,11 +146,14 @@ export default function Dashboard() {
 
       {/* Workflow Steps */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {workflowSteps.map((step, i) => (
+        {workflowSteps.map((step) => (
           <React.Fragment key={step.label}>
             <Link href={step.href}>
               <Card className="p-5 cursor-pointer hover:border-primary/40 hover:-translate-y-0.5 transition-all">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">{step.label}</p>
+                <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  {step.label}
+                  <MetricInfo metricKey={step.metricKey} side="bottom" />
+                </div>
                 <p className="text-3xl font-display font-bold text-foreground">{step.count}</p>
                 <p className="text-xs text-muted-foreground mt-1">{step.sub}</p>
               </Card>
@@ -162,15 +169,17 @@ export default function Dashboard() {
           value={metrics?.npsScore != null ? metrics.npsScore : "—"}
           sub={metrics?.npsScore != null ? "Gemini tahminlerinden" : "Henüz analiz yok"}
           icon={TrendingUp} color="primary"
+          metricKey="nps"
         />
         <StatCard
           title="Ort. CSAT Skoru"
           value={metrics?.csatScore != null ? `${metrics.csatScore}/5` : "—"}
           sub={metrics?.csatScore != null ? "Gemini tahminlerinden" : "Henüz analiz yok"}
           icon={MessageSquare} color="success"
+          metricKey="csat"
         />
-        <StatCard title="Toplam Müşteri" value={metrics?.totalCustomers ?? 0} sub={`${metrics?.highChurnCount ?? 0} yüksek churn riski`} icon={MessagesSquare} color="warning" href="/customers" />
-        <StatCard title="Toplam Yanıt" value={metrics?.totalResponses ?? 0} sub="Tüm kampanyalardan" icon={Send} color="primary" href="/campaigns" />
+        <StatCard title="Toplam Müşteri" value={metrics?.totalCustomers ?? 0} sub={`${metrics?.highChurnCount ?? 0} yüksek churn riski`} icon={MessagesSquare} color="warning" href="/customers" metricKey="totalCustomers" />
+        <StatCard title="Toplam Yanıt" value={metrics?.totalResponses ?? 0} sub="Tüm kampanyalardan" icon={Send} color="primary" href="/campaigns" metricKey="totalResponses" />
       </div>
 
       {/* Anomaly Banner */}
