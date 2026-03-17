@@ -1,0 +1,878 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 1.0.0
+  description: Enterprise Omnichannel CX Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: gemini
+    description: Gemini AI chat and image operations
+  - name: ai-personalization
+    description: AI-powered survey text personalization
+  - name: dashboard
+    description: Dashboard metrics
+  - name: surveys
+    description: Survey management
+  - name: customers
+    description: Customer profiles
+  - name: ai-approvals
+    description: AI content approval queue
+  - name: triggers
+    description: Behavioral triggers
+  - name: audit-logs
+    description: Audit logs for GDPR/KVKK compliance
+  - name: segments
+    description: Customer segments
+
+paths:
+  /gemini/conversations:
+    get:
+      operationId: listGeminiConversations
+      tags: [gemini]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiConversation"
+    post:
+      operationId: createGeminiConversation
+      tags: [gemini]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeminiConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiConversation"
+  /gemini/conversations/{id}:
+    get:
+      operationId: getGeminiConversation
+      tags: [gemini]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
+    delete:
+      operationId: deleteGeminiConversation
+      tags: [gemini]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
+  /gemini/conversations/{id}/messages:
+    get:
+      operationId: listGeminiMessages
+      tags: [gemini]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiMessage"
+    post:
+      operationId: sendGeminiMessage
+      tags: [gemini]
+      summary: Send a message and receive an AI response (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendGeminiMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
+
+  /ai/personalize:
+    post:
+      operationId: personalizeText
+      tags: [ai-personalization]
+      summary: Generate AI-personalized survey text for a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonalizeTextInput"
+      responses:
+        "200":
+          description: Personalized text generated and added to approval queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiApproval"
+
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /dashboard/metrics:
+    get:
+      operationId: getDashboardMetrics
+      tags: [dashboard]
+      summary: Get dashboard KPI metrics
+      responses:
+        "200":
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMetrics"
+
+  /dashboard/trend:
+    get:
+      operationId: getDashboardTrend
+      tags: [dashboard]
+      summary: Get NPS/CSAT trend data
+      responses:
+        "200":
+          description: Trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+
+  /surveys:
+    get:
+      operationId: getSurveys
+      tags: [surveys]
+      summary: List all surveys
+      responses:
+        "200":
+          description: List of surveys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Survey"
+    post:
+      operationId: createSurvey
+      tags: [surveys]
+      summary: Create a new survey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSurveyInput"
+      responses:
+        "201":
+          description: Survey created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+
+  /surveys/{id}:
+    get:
+      operationId: getSurvey
+      tags: [surveys]
+      summary: Get survey by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Survey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+    patch:
+      operationId: updateSurvey
+      tags: [surveys]
+      summary: Update survey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSurveyInput"
+      responses:
+        "200":
+          description: Updated survey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+    delete:
+      operationId: deleteSurvey
+      tags: [surveys]
+      summary: Delete survey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /customers:
+    get:
+      operationId: getCustomers
+      tags: [customers]
+      summary: List customers
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+
+  /ai-approvals:
+    get:
+      operationId: getAiApprovals
+      tags: [ai-approvals]
+      summary: List AI-generated content pending approval
+      responses:
+        "200":
+          description: List of pending approvals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiApproval"
+
+  /ai-approvals/{id}/approve:
+    post:
+      operationId: approveAiContent
+      tags: [ai-approvals]
+      summary: Approve AI-generated content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiApproval"
+
+  /ai-approvals/{id}/reject:
+    post:
+      operationId: rejectAiContent
+      tags: [ai-approvals]
+      summary: Reject AI-generated content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiApproval"
+
+  /triggers:
+    get:
+      operationId: getTriggers
+      tags: [triggers]
+      summary: List behavioral triggers
+      responses:
+        "200":
+          description: List of triggers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trigger"
+    post:
+      operationId: createTrigger
+      tags: [triggers]
+      summary: Create a new trigger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTriggerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trigger"
+
+  /triggers/{id}:
+    patch:
+      operationId: updateTrigger
+      tags: [triggers]
+      summary: Update trigger
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTriggerInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trigger"
+    delete:
+      operationId: deleteTrigger
+      tags: [triggers]
+      summary: Delete trigger
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /audit-logs:
+    get:
+      operationId: getAuditLogs
+      tags: [audit-logs]
+      summary: Get audit logs
+      responses:
+        "200":
+          description: List of audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
+  /segments:
+    get:
+      operationId: getSegments
+      tags: [segments]
+      summary: List customer segments
+      responses:
+        "200":
+          description: List of segments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Segment"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    GeminiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, createdAt]
+
+    GeminiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, conversationId, role, content, createdAt]
+
+    CreateGeminiConversationBody:
+      type: object
+      properties:
+        title:
+          type: string
+      required: [title]
+
+    SendGeminiMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required: [content]
+
+    GeminiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeminiMessage"
+      required: [id, title, createdAt, messages]
+
+    GeminiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    PersonalizeTextInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        surveyId:
+          type: integer
+        originalText:
+          type: string
+        tone:
+          type: string
+          enum: [formal, empathetic, friendly]
+        channel:
+          type: string
+          enum: [email, web, sms, in-app]
+      required: [customerId, surveyId, originalText, tone, channel]
+
+    DashboardMetrics:
+      type: object
+      properties:
+        npsScore:
+          type: number
+        csatScore:
+          type: number
+        cesScore:
+          type: number
+        responseRate:
+          type: number
+        totalResponses:
+          type: integer
+        pendingApprovals:
+          type: integer
+        activeSurveys:
+          type: integer
+        churnRiskCount:
+          type: integer
+      required: [npsScore, csatScore, cesScore, responseRate, totalResponses, pendingApprovals, activeSurveys, churnRiskCount]
+
+    TrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        nps:
+          type: number
+        csat:
+          type: number
+        ces:
+          type: number
+      required: [date, nps, csat, ces]
+
+    Survey:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          enum: [NPS, CSAT, CES, custom]
+        status:
+          type: string
+          enum: [draft, active, paused, completed]
+        channel:
+          type: string
+          enum: [email, web, sms, in-app]
+        triggerEvent:
+          type: string
+        responseCount:
+          type: integer
+        avgScore:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, title, type, status, channel, responseCount, createdAt, updatedAt]
+
+    CreateSurveyInput:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [NPS, CSAT, CES, custom]
+        channel:
+          type: string
+          enum: [email, web, sms, in-app]
+        triggerEvent:
+          type: string
+      required: [title, type, channel]
+
+    UpdateSurveyInput:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused, completed]
+        channel:
+          type: string
+          enum: [email, web, sms, in-app]
+        triggerEvent:
+          type: string
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        segment:
+          type: string
+        npsScore:
+          type: number
+          nullable: true
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative]
+        churnRisk:
+          type: string
+          enum: [low, medium, high]
+        lastInteraction:
+          type: string
+        createdAt:
+          type: string
+      required: [id, name, email, segment, sentiment, churnRisk, lastInteraction, createdAt]
+
+    CustomerDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        segment:
+          type: string
+        npsScore:
+          type: number
+          nullable: true
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative]
+        churnRisk:
+          type: string
+          enum: [low, medium, high]
+        lastInteraction:
+          type: string
+        createdAt:
+          type: string
+        interactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Interaction"
+      required: [id, name, email, segment, sentiment, churnRisk, lastInteraction, createdAt, interactions]
+
+    Interaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        channel:
+          type: string
+        event:
+          type: string
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative]
+        score:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, channel, event, sentiment, createdAt]
+
+    AiApproval:
+      type: object
+      properties:
+        id:
+          type: integer
+        surveyId:
+          type: integer
+          nullable: true
+        customerId:
+          type: integer
+          nullable: true
+        customerName:
+          type: string
+        channel:
+          type: string
+        toneUsed:
+          type: string
+          enum: [formal, empathetic, friendly]
+        originalText:
+          type: string
+        personalizedText:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        rejectionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, customerName, channel, toneUsed, originalText, personalizedText, status, createdAt]
+
+    RejectInput:
+      type: object
+      properties:
+        reason:
+          type: string
+      required: [reason]
+
+    Trigger:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        event:
+          type: string
+          enum: [purchase, ticket_close, onboarding_abandon, payment_confusion, rage_click, cancellation_intent, survey_complete]
+        channel:
+          type: string
+          enum: [email, web, sms, in-app]
+        delayMinutes:
+          type: integer
+        isActive:
+          type: boolean
+        surveyId:
+          type: integer
+          nullable: true
+        firedCount:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, name, event, channel, delayMinutes, isActive, firedCount, createdAt]
+
+    CreateTriggerInput:
+      type: object
+      properties:
+        name:
+          type: string
+        event:
+          type: string
+          enum: [purchase, ticket_close, onboarding_abandon, payment_confusion, rage_click, cancellation_intent, survey_complete]
+        channel:
+          type: string
+          enum: [email, web, sms, in-app]
+        delayMinutes:
+          type: integer
+        surveyId:
+          type: integer
+      required: [name, event, channel, delayMinutes]
+
+    UpdateTriggerInput:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+        delayMinutes:
+          type: integer
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: integer
+          nullable: true
+        userId:
+          type: string
+        details:
+          type: string
+        piiMasked:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, action, entityType, userId, details, piiMasked, createdAt]
+
+    Segment:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        customerCount:
+          type: integer
+        avgNps:
+          type: number
+          nullable: true
+        criteria:
+          type: string
+        createdAt:
+          type: string
+      required: [id, name, description, customerCount, createdAt]

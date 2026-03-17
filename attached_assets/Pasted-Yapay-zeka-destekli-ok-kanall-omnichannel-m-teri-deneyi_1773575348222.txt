@@ -1,0 +1,42 @@
+Yapay zeka destekli çok kanallı (omnichannel) müşteri deneyimi (CX) ve geri bildirim yönetim platformunun barındırması gereken özellik setinin detaylı dokümantasyonu aşağıda sunulmuştur:
+
+### YAPAY ZEKA DESTEKLİ CX PLATFORMU DETAYLI ÖZELLİK SETİ
+
+#### 1. Çok Kanallı (Omnichannel) Veri Toplama ve Entegrasyon Özellikleri
+Bu modül, yapılandırılmış (anket) ve yapılandırılmamış (serbest metin, ses) verileri tek bir merkezde birleştirmeyi sağlar.
+*   **Bütünsel Veri İçe Aktarımı:** Çağrı merkezi kayıtları (gelen/giden), e-posta, canlı sohbet (chat), sosyal medya yorumları, uygulama mağazası değerlendirmeleri, web sitesi geri bildirimleri ve anketlerin eşzamanlı olarak tek platformda toplanması.
+*   **Çift Kanallı (Dual-Channel) Analiz:** Sadece sesten metne dönüştürülmüş dökümleri değil, sesin akustik özelliklerini (ses tonu, perdesi, konuşma hızı) de metin analiziyle birleştirerek işleyebilme kapasitesi.
+*   **Açık API ve Hazır Entegrasyonlar:** Salesforce, Zendesk, Intercom, HubSpot ve Slack gibi mevcut CRM, destek platformları ve mesajlaşma araçlarıyla kod yazmadan, çift yönlü ve gerçek zamanlı entegrasyon.
+
+#### 2. Gelişmiş Yapay Zeka ve Doğal Dil İşleme (NLP) Yetenekleri
+Toplanan karmaşık verilerin anlamlandırıldığı ve kategorize edildiği temel zeka özellikleridir.
+*   **İnce Taneli (Fine-Grained) Duygu Analizi:** Geri bildirimleri yalnızca "pozitif/negatif" olarak etiketlemenin ötesine geçerek; kafa karışıklığı, hayal kırıklığı, aciliyet veya neşe gibi spesifik insani duyguları algılama.
+*   **Yön ve Özellik Bazlı (Aspect-Based) Analiz:** Müşterinin aynı yorum içindeki farklı deneyimlerini ayrıştırma. (Örn: "Ürünün tasarımı harika ama kargo çok yavaştı" cümlesinde tasarım için pozitif, teslimat için negatif skor üretme).
+*   **Otomatik Kök Neden Analizi (Root Cause Analysis):** Manuel kural oluşturmaya gerek kalmadan, müşteri memnuniyetsizliğinin temel sebeplerini (örneğin uygulama çökmesi, fatura hatası) on binlerce metin arasından otomatik olarak keşfetme ve temalara ayırma.
+*   **Etki Analizi:** Belirlenen kök nedenlerin ve şikayet temalarının, kurumun genel NPS (Net Tavsiye Skoru) ve CSAT (Müşteri Memnuniyet Skoru) metriklerini matematiksel olarak ne oranda düşürdüğünü veya artırdığını simüle etme.
+
+#### 3. Dinamik Anket ve Etkileşim Yönetimi
+Geleneksel anketleri terk edip diyalog bazlı bir yapı sunan veri zenginleştirme özellikleridir.
+*   **Konuşmaya Dayalı ve Adaptif Takip (Conversational AI):** Müşteri açık uçlu bir soruya kısa, belirsiz veya yetersiz bir yanıt verdiğinde, sistemin bunu eşzamanlı algılayarak duruma ve bağlama uygun ("Bize biraz daha detay verebilir misiniz?") akıllı ek sorular (follow-up) sorması.
+*   **Metrik Bazlı Hazır Şablonlar:** Sürükle-bırak (drag-and-drop) oluşturucular ile NPS, CSAT, CES (Müşteri Efor Skoru) ölçümlerine yönelik, kurumsal kimliğe uygun anket tasarımı.
+*   **Durumsal Tetikleyiciler:** Sepet terk etme, müşteri destek biletinin kapanması veya bir işlemin tamamlanması gibi müşteri davranışlarına bağlı olarak anında otomatik anket veya etkileşim başlatma.
+
+#### 4. Gerçek Zamanlı Aksiyon, Yönlendirme ve Canlı Koçluk
+Analiz edilen verilerin anlık operasyonel hamlelere dönüştüğü özellikleri kapsar.
+*   **Erken Uyarı (Early Warning) ve Anomali Tespiti:** Olumsuz duygularda ani artış, müşteri kayıp (churn) sinyalleri veya spesifik şikayetlerde yığılma tespit edildiğinde yöneticilere anlık uyarılar (alert) gönderme.
+*   **Kapalı Döngü (Closed-Loop) İş Akışları:** Negatif geri bildirim bırakan müşterilerin anında tespit edilerek durumun bir "kurtarma bileti" (ticket) haline getirilmesi ve çözüme en uygun temsilciye atanarak müşteriye hızlıca geri dönülmesi.
+*   **Canlı Temsilci Asistanı (In-The-Moment Coaching):** Telefon görüşmesi veya canlı yazışma esnasında müşterinin ses tonu veya kullandığı kelimeler üzerinden artan hayal kırıklığını saptayıp, müşteri temsilcisinin ekranına empati odaklı veya durumu yatıştıracak anlık yanıt önerileri (prompts) çıkarma.
+*   **Proaktif Yönetici Müdahalesi:** Çağrı tamamen kaybedilmeden veya müşteri telefonu kapatmadan önce, görüşmenin olumsuza gittiğini tespit ederek yöneticilere (supervisor) görüşmeye doğrudan müdahil olma imkanı sunma.
+
+#### 5. Raporlama, Görselleştirme ve Öngörüsel Analitik
+Verilerin kurumsal ölçekte tüketilebilir raporlara dönüştürülmesini sağlar.
+*   **Rol Bazlı Gösterge Panelleri (Dashboards):** Üst düzey yöneticiler (CX liderleri) için stratejik NPS/CSAT trendleri sunarken; şube müdürleri veya takım liderleri için sadece kendi bölgelerini ilgilendiren anlık sorunları gösteren filtrelenmiş arayüzler sağlama.
+*   **Müşteri Yolculuğu (Journey) Haritalaması:** Müşterinin ilk web sitesi ziyaretinden, çağrı merkezi şikayetine ve sosyal medya yorumuna kadar tüm temas noktalarındaki sürecini tek bir ekranda, engelleri (sürtünme noktaları) ile birlikte görselleştirme.
+*   **Tahminleyici (Predictive) Modeller:** Eldeki etkileşim geçmişi, fatura verileri ve duygu skorlarını kullanarak, henüz anket doldurmamış müşterilerin olası memnuniyet durumunu ve şirketi terk etme (churn) riskini önceden hesaplama.
+
+#### 6. Güvenlik, Gizlilik ve Mevzuat Uyumu (Etik AI)
+KVKK, GDPR gibi yasal zorunlulukları karşılamak için kurulan altyapı özellikleridir.
+*   **Gerçek Zamanlı Veri Maskeleme (PII Redaction):** Analiz edilecek ses metinlerinde, anketlerde veya chat dökümlerindeki ad-soyad, TC kimlik numarası, IBAN, adres ve telefon numarası gibi kişisel verilerin (PII) otomatik olarak tespit edilip maskelenmesi.
+*   **Akıllı Numaralandırma (Smart Numbering):** Maskeleme işlemi yapılırken metnin bağlamını bozmamak için veriye tutarlı etiketler atanması (Örneğin aynı metin içinde Ahmet Yılmaz için sürekli [NAME1], Ayşe Kaya için [NAME2] kullanılması).
+*   **Sıfır Elde Tutma (Zero-Retention) Politikası:** Verilerin sistemde yalnızca maskeleme ve anlık analiz amacı ile işlenip, iş zekasına dahil edildikten sonra sistem loglarından anında imha edilmesi.
+*   **Erişim Yönetimi (RBAC):** İşlenen verilerin sadece ilgili departmanların görebileceği şekilde yetkilendirme altyapısına (Rol Bazlı Erişim Kontrolü) sahip olması.

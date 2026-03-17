@@ -1,0 +1,18 @@
+Müşteri deneyimi ve geri bildirim platformlarının iletişim ve anket yönetimi süreçleri; müşteriyi yormayan, doğru kanaldan doğru zamanda ulaşmayı hedefleyen ve hiper-kişiselleştirme sunan temel prensiplere dayanır. 
+
+Bu uygulamaların anket yönetimi yöntemleri ve iletişim prensipleri şu şekildedir:
+
+*   **Çok Kanallı (Omnichannel) Toplama:** İletişim tek bir alana sıkıştırılmaz. Anketler e-posta, SMS, WhatsApp, web sitesi açılır pencereleri (pop-up/nudge), mobil uygulama içi ekranlar, çevrimdışı kanallar ve QR kodlar aracılığıyla müşterinin o an bulunduğu kanaldan iletilir.
+*   **Doğru Zamanlama ve Bağlam:** Geri bildirimler üzerinden aylar geçtikten sonra değil; müşteri bir ürünü satın aldığında, müşteri hizmetleriyle görüşmesini bitirdiğinde veya web sitesini terk etme eğilimi gösterdiğinde anında talep edilir.
+*   **Kısalık ve Soru Dengesi:** Anket tasarımlarında açık uçlu ve kapalı uçlu soruların dengesi korunmalı, anketin tamamlanma süresi **üç dakikayı geçmemelidir**.
+*   **Konuşmaya Dayalı (Conversational) ve Adaptif Deneyim:** İşlemsel ve sıkıcı formlar yerine, her ekranda tek bir soru gösterilerek gerçek bir konuşma hissi yaratılır. Yapay zeka, müşterinin açık uçlu sorulara verdiği yanıtları analiz eder; yanıt yüzeysel ise eşzamanlı olarak devreye girip empati kurarak *"Bu deneyim size nasıl hissettirdi?"* gibi dinamik takip soruları yöneltir.
+*   **Dallanma/Atlama Mantığı (Skip Logic):** Anketler statik değildir. Müşterinin bir önceki soruya verdiği yanıta veya seçtiği puana göre (örneğin olumsuz bir puan verdiğinde) karşılarına çıkacak bir sonraki soru otomatik olarak değişir ve kişiselleştirilmiş yollar oluşturulur.
+
+**E-Posta (Mail) Tasarım Şemaları ve İçerik Yönetimi**
+
+Müşterilerle iletişimde kullanılan e-postaların ve mail içi anket şemalarının tasarlanmasında kullanılan temel yöntemler şunlardır:
+
+*   **Sürükle-Bırak (Drag-and-Drop) Sistemleri ve Hazır Şablonlar:** E-posta anket şemaları için herhangi bir kodlama bilgisine ihtiyaç duyulmaz. Sistemler, CSAT, NPS ve CES ölçümleri için önceden oluşturulmuş e-posta şablonları sunar ve bu tasarımlar sürükle-bırak araçlarıyla kolayca oluşturulur.
+*   **Kurumsal Kimlik ve Markalama (Branding):** Gönderilen e-posta şablonları; markanın renkleri, logoları, kendi dili ve tasarım kurgusuna göre tamamen özelleştirilerek (branded surveys) müşteriye güven verecek şekilde tasarlanır.
+*   **Mobil Optimizasyon ve Çoklu Dil:** Akıllı telefon kullanımının ağırlığı nedeniyle tüm e-posta ve form şemaları mobil cihazlarla kusursuz çalışacak şekilde (mobile-friendly) oluşturulur. Ayrıca global müşteriler için e-posta anketleri farklı dillere anında çevrilebilen (multilingual) özellikler barındırır.
+*   **Yapay Zeka Destekli Hiper-Kişiselleştirme (LLM Entegrasyonu):** Müşterilere gönderilen e-posta yanıtları veya anket davetleri büyük dil modelleri (LLM) tarafından hiper-kişiselleştirilir. Yapay zeka, müşterinin geçmiş satın alma davranışlarını, etkileşim geçmişini ve mevcut problemini analiz ederek e-postanın dilini, tonunu ve stilini o kitleye özel olarak anında uyarlar. Örneğin, bir finans kurumu, müşteriye özel oranları, şartları ve onun profiline uygun ek hizmet önerilerini barındıran e-posta yanıtlarını manuel müdahale olmadan tasarlayıp iletebilir.

@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/.git
+artifacts/cx-platform
+artifacts/mockup-sandbox
+artifacts/api-server/src
+lib/*/src
+**/*.log
+.local
+attached_assets

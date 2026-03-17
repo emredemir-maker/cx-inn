@@ -1,0 +1,14 @@
+packages:
+  "recharts": "For rendering beautiful dashboard metric charts (AreaChart)"
+  "framer-motion": "For premium page transitions and interactive micro-animations"
+  "date-fns": "For human-readable date formatting across tables and logs"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes safely"
+  "@radix-ui/react-slot": "Required for complex component composition"
+
+images: []
+
+notes:
+  - "The UI language is fully localized to Turkish as per requirements."
+  - "Dark mode is enforced globally through index.css using a deep navy/slate enterprise theme."
+  - "Uses generated API hooks from @workspace/api-client-react"
