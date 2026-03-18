@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
 import { AuthContext } from "@/context/auth-context";
+import { RolePreviewProvider } from "@/context/role-preview-context";
 
 import Dashboard from "./pages/dashboard";
 import Surveys from "./pages/surveys";
@@ -22,6 +23,7 @@ import SettingsPage from "./pages/settings";
 import UserManagementPage from "./pages/user-management";
 import ApprovalsPage from "./pages/approvals";
 import ManualPage from "./pages/manual";
+import PermissionsPage from "./pages/permissions";
 import LoginPage from "./pages/login";
 import NotFound from "./pages/not-found";
 
@@ -53,6 +55,7 @@ function Router() {
       <Route path="/user-management" component={UserManagementPage} />
       <Route path="/approvals" component={ApprovalsPage} />
       <Route path="/manual" component={ManualPage} />
+      <Route path="/permissions" component={PermissionsPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -95,11 +98,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthGate>
-            <Router />
-          </AuthGate>
-        </WouterRouter>
+        <RolePreviewProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AuthGate>
+              <Router />
+            </AuthGate>
+          </WouterRouter>
+        </RolePreviewProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

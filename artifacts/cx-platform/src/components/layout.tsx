@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { NlpQueryPanel } from "./nlp-query";
 import { useAppAuth } from "@/context/auth-context";
+import { useRolePreview } from "@/context/role-preview-context";
 import { LogOut } from "lucide-react";
 import {
   LayoutDashboard,
@@ -22,6 +23,10 @@ import {
   ClipboardCheck,
   Crown,
   BookOpen,
+  Eye,
+  EyeOff,
+  X,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/hooks/use-firebase-auth";
@@ -99,12 +104,97 @@ const NAV_SECTIONS: NavSection[] = [
         icon: UserCog,
         roles: ["superadmin"],
       },
+      {
+        href: "/permissions",
+        label: "Yetki Matrisi",
+        icon: KeyRound,
+        roles: ["superadmin"],
+      },
     ],
   },
 ];
 
+const PREVIEW_OPTIONS: { role: UserRole; label: string; icon: string }[] = [
+  { role: "cx_manager", label: "CX Manager Görünümü", icon: "🛡️" },
+  { role: "cx_user", label: "CX Kullanıcı Görünümü", icon: "👤" },
+];
+
+function ViewAsDropdown() {
+  const { realRole, isPreviewMode, user } = useAppAuth();
+  const { previewRole, setPreviewRole } = useRolePreview();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  if (realRole !== "superadmin") return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Rol Önizleme"
+        className={cn(
+          "relative p-2 rounded-full transition-all",
+          isPreviewMode
+            ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+        )}
+      >
+        {isPreviewMode ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-card shadow-xl z-50 overflow-hidden">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border">
+            Rol Önizleme
+          </div>
+          {PREVIEW_OPTIONS.map((opt) => (
+            <button
+              key={opt.role}
+              onClick={() => {
+                setPreviewRole(previewRole === opt.role ? null : opt.role);
+                setOpen(false);
+              }}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5",
+                previewRole === opt.role
+                  ? "text-amber-400 bg-amber-500/10"
+                  : "text-foreground",
+              )}
+            >
+              <span>{opt.icon}</span>
+              <span className="flex-1 text-left">{opt.label}</span>
+              {previewRole === opt.role && (
+                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded-full">
+                  Aktif
+                </span>
+              )}
+            </button>
+          ))}
+          {isPreviewMode && (
+            <button
+              onClick={() => { setPreviewRole(null); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors border-t border-border"
+            >
+              <X className="h-4 w-4" />
+              <span>Önizlemeden Çık</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserSection() {
-  const { user, logout } = useAppAuth();
+  const { user, logout, realRole, isPreviewMode } = useAppAuth();
   const displayName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Kullanıcı"
     : "Kullanıcı";
@@ -120,11 +210,19 @@ function UserSection() {
   return (
     <div className="p-4 border-t border-border/50 space-y-3">
       {role && (
-        <div className="flex justify-center">
-          <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5", ROLE_COLORS[role])}>
-            {role === "superadmin" && <Crown className="w-2.5 h-2.5" />}
-            {ROLE_LABELS[role]}
+        <div className="flex flex-col items-center gap-1">
+          <span className={cn(
+            "text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5",
+            isPreviewMode ? "bg-amber-500/15 text-amber-400 border border-amber-500/30" : ROLE_COLORS[role]
+          )}>
+            {isPreviewMode ? <Eye className="w-2.5 h-2.5" /> : (role === "superadmin" && <Crown className="w-2.5 h-2.5" />)}
+            {isPreviewMode ? `${ROLE_LABELS[role]} (Önizleme)` : ROLE_LABELS[role]}
           </span>
+          {isPreviewMode && realRole && (
+            <span className="text-[9px] text-muted-foreground/50 flex items-center gap-1">
+              <Crown className="w-2 h-2" /> Gerçek: {ROLE_LABELS[realRole]}
+            </span>
+          )}
         </div>
       )}
       <div className="flex items-center gap-3 p-2 rounded-xl group">
@@ -157,7 +255,8 @@ function UserSection() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user } = useAppAuth();
+  const { user, isPreviewMode } = useAppAuth();
+  const { previewRole, setPreviewRole } = useRolePreview();
   const userRole = user?.role as UserRole | undefined;
 
   return (
@@ -246,13 +345,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="w-full bg-card/50 border border-border rounded-full pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-inner"
             />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <ViewAsDropdown />
             <button className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-full transition-colors">
               <Bell className="h-5 w-5" />
               <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full shadow-[0_0_6px_rgba(59,130,246,0.6)]" />
             </button>
           </div>
         </header>
+
+        {/* Preview Mode Banner */}
+        {isPreviewMode && previewRole && (
+          <div className="flex-shrink-0 bg-amber-500/10 border-b border-amber-500/30 px-8 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-400 text-sm">
+              <Eye className="h-4 w-4" />
+              <span className="font-semibold">
+                {previewRole === "cx_manager" ? "🛡️ CX Manager" : "👤 CX Kullanıcısı"} görünümü olarak önizleme yapıyorsunuz
+              </span>
+              <span className="text-amber-400/60 text-xs">— Gerçek verileriniz ve yetkileriniz korunmaktadır</span>
+            </div>
+            <button
+              onClick={() => setPreviewRole(null)}
+              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 px-3 py-1.5 rounded-full transition-all font-medium"
+            >
+              <X className="h-3.5 w-3.5" />
+              Önizlemeden Çık
+            </button>
+          </div>
+        )}
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto p-8">
