@@ -189,6 +189,8 @@ const SECTIONS: Section[] = [
   { id: "onay",         title: "Onay Akışı",               icon: CheckSquare, color: "#f97316" },
   { id: "zero-survey",  title: "Sıfır-Anket Motoru",       icon: Zap,         color: "#84cc16" },
   { id: "ayarlar",      title: "Ayarlar & API",            icon: Settings,    color: "#64748b" },
+  { id: "rol-gorunum",  title: "Rol Görünümü (View As)",   icon: Eye,         color: "#f59e0b" },
+  { id: "yetki-matrisi",title: "Yetki Matrisi",            icon: Lock,        color: "#ec4899" },
   { id: "metrik",       title: "Metrik Tanımları",         icon: BarChart3,   color: "#06b6d4" },
   { id: "sss",          title: "Sıkça Sorulan Sorular",    icon: HelpCircle,  color: "#a855f7" },
 ];
@@ -1009,7 +1011,166 @@ export default function ManualPage() {
 
           <div className="border-t border-slate-800" />
 
-          {/* ── 12. Metrik Tanımları ── */}
+          {/* ── 12. Rol Görünümü (View As) ── */}
+          <section id="rol-gorunum" ref={reg("rol-gorunum")} className="scroll-mt-4">
+            <SectionHeader
+              icon={Eye} title="Rol Görünümü (View As)" color="bg-amber-500/15 text-amber-400 border-amber-500/25"
+              subtitle="Süper Admin olarak diğer rollerin gözünden platformu deneyimleyin — gerçek oturumunuzu kaybetmeden."
+              roles={["superadmin"]}
+            />
+
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-white">Nasıl Kullanılır?</h4>
+                <Step n={1} title="Göz İkonu">
+                  Üst çubukta sağ üstteki göz (<Eye className="inline w-3 h-3 text-amber-400" />) ikonuna tıklayın. Bu ikon yalnızca Süper Admin hesaplarda görünür.
+                </Step>
+                <Step n={2} title="Rol Seçin">
+                  Açılan menüden <RoleBadge role="cx_manager" /> veya <RoleBadge role="cx_user" /> seçin. Seçim anında uygulanır.
+                </Step>
+                <Step n={3} title="Sarı Banner">
+                  Ekranın üstünde <span className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold"><Eye className="w-2.5 h-2.5" />Önizleme Modu</span> banner'ı belirir. Hangi rolü gördüğünüz açıkça gösterilir.
+                </Step>
+                <Step n={4} title="Çıkış">
+                  Menüden "Kendi Görünümüm" seçeneğiyle veya banner'daki "Çıkış" butonuyla normal moda dönün.
+                </Step>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-white">Ne Değişir?</h4>
+                <div className="space-y-2.5">
+                  {[
+                    { icon: Shield,    label: "Sidebar Menüsü",     desc: "Seçilen rolün erişebildiği sayfalar görünür, diğerleri gizlenir." },
+                    { icon: Filter,    label: "PII Maskeleme",       desc: "CX Kullanıcısı seçilirse e-posta adresleri maskelenir." },
+                    { icon: Lock,      label: "Buton/Aksiyon Kısıtı",desc: "Silme, düzenleme, onaylama butonları role göre gizlenir." },
+                    { icon: Eye,       label: "Gerçek Oturum Korunur",desc: "Gerçek Süper Admin yetkiniz arka planda aktif kalmaya devam eder." },
+                  ].map(({ icon: Icon, label, desc }) => (
+                    <div key={label} className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                      <Icon className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-white">{label}</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">{desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <ScreenMockup title="dashboard" className="mb-6">
+              <div className="p-0">
+                <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-xs font-semibold text-amber-300">Önizleme Modu — CX Kullanıcısı olarak görüntülüyorsunuz</span>
+                  </div>
+                  <button className="text-[10px] text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full hover:bg-amber-500/10">Çıkış</button>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800">
+                  <span className="text-xs font-semibold text-white">Dashboard</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center">
+                      <Eye className="w-3 h-3 text-amber-400" />
+                    </div>
+                    <div className="text-[10px] text-slate-500 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 text-amber-400">CX Kullanıcısı</div>
+                  </div>
+                </div>
+                <div className="p-4 text-[10px] text-slate-500 italic">Sayfa içeriği CX Kullanıcısı izinleriyle yüklendi…</div>
+              </div>
+            </ScreenMockup>
+
+            <Tip type="success">
+              View As özelliği test ve kalite güvencesi için idealdir. Yeni bir kullanıcı eklemeden önce onların deneyimini canlıda görebilirsiniz.
+            </Tip>
+          </section>
+
+          <div className="border-t border-slate-800" />
+
+          {/* ── 13. Yetki Matrisi ── */}
+          <section id="yetki-matrisi" ref={reg("yetki-matrisi")} className="scroll-mt-4">
+            <SectionHeader
+              icon={Lock} title="Yetki Matrisi" color="bg-pink-500/15 text-pink-400 border-pink-500/25"
+              subtitle="Roller bazında modül erişimi, kişisel veri görünürlüğü ve eylem yetkilerini veritabanına kaydederek dinamik olarak düzenleyin."
+              roles={["superadmin"]}
+            />
+
+            <div className="grid md:grid-cols-3 gap-4 mb-6">
+              {[
+                { icon: Layers,   label: "Modül Erişimi",   desc: "Her rolün hangi sayfaları görebileceğini belirler.", color: "text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/20" },
+                { icon: Filter,   label: "Kişisel Veri (PII)", desc: "E-posta gibi alanların maskelenip maskelenmeyeceğini ayarlar.", color: "text-pink-400",   bg: "bg-pink-500/10 border-pink-500/20" },
+                { icon: CheckSquare, label: "Eylem Yetkileri", desc: "Silme, düzenleme ve onaylama butonlarının görünürlüğü.", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+              ].map(({ icon: Icon, label, desc, color, bg }) => (
+                <div key={label} className={`p-4 rounded-xl border ${bg} flex flex-col gap-2`}>
+                  <Icon className={`w-5 h-5 ${color}`} />
+                  <p className="text-xs font-semibold text-white">{label}</p>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-white mb-3">Erişim Seviyeleri (Modül Erişimi)</h4>
+              <div className="space-y-2">
+                {[
+                  { label: "Tam Erişim",      badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30", desc: "Görüntüleme + tüm düzenleme aksiyonları etkin." },
+                  { label: "Görüntüleme",     badge: "bg-blue-500/20 text-blue-300 border-blue-500/30",         desc: "Yalnızca okuma; ekleme/silme/düzenleme butonları gizli." },
+                  { label: "Kısıtlı",         badge: "bg-amber-500/20 text-amber-300 border-amber-500/30",      desc: "Sayfaya erişilir ama belirli alanlar/tablolar gizlenir." },
+                  { label: "Onay Gerekli",    badge: "bg-orange-500/20 text-orange-300 border-orange-500/30",   desc: "Her aksiyon Süper Admin onayına gönderilir." },
+                  { label: "Erişim Yok",      badge: "bg-red-500/20 text-red-300 border-red-500/30",            desc: "Sayfa sidebar'dan gizlenir, URL ile de açılamaz." },
+                ].map(({ label, badge, desc }) => (
+                  <div key={label} className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge} shrink-0`}>{label}</span>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-white mb-3">Nasıl Düzenlenir?</h4>
+              <Step n={1} title="Yetki Matrisi Sayfasına Gidin">
+                Sol menüden <span className="text-indigo-400 font-medium">Süper Admin → Yetki Matrisi</span> yolunu izleyin.
+              </Step>
+              <Step n={2} title="Düzenle Butonuna Tıklayın">
+                Sayfanın sağ üstündeki <span className="inline-flex items-center gap-1 bg-indigo-600/20 text-indigo-300 text-[10px] px-1.5 py-0.5 rounded border border-indigo-500/30 font-semibold"><Edit3 className="w-2.5 h-2.5" />Düzenle</span> butonuyla düzenleme modunu etkinleştirin.
+              </Step>
+              <Step n={3} title="Hücreye Tıklayın">
+                İstediğiniz rol-modül kesişimindeki hücreye tıklayın. Her tıklamada değer döngüsel olarak değişir.
+              </Step>
+              <Step n={4} title="Kaydet">
+                Değişiklikler anında veritabanına kaydedilir. Sayfayı yenileseniz de korunur.
+              </Step>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/40">
+                <div className="flex items-center gap-2 mb-2">
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-semibold text-white">Süper Admin Sütunu Kilitli</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Süper Admin yetkilerini hiçbir zaman düzenleyemezsiniz. Bu sütun her zaman gri ve kilitli görünür.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/40">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-semibold text-white">Varsayılana Sıfırla</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Her rolün yanındaki "Sıfırla" butonuyla o role ait tüm ayarları platform varsayılanına döndürebilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            <Tip type="warning">
+              Yetki Matrisi değişiklikleri anlık etkili olur — oturum açık kullanıcılar sonraki sayfa yenilemesinde yeni kısıtlamalarla karşılaşır. Düzenlemeden önce etkilenen kullanıcıları bilgilendirin.
+            </Tip>
+          </section>
+
+          <div className="border-t border-slate-800" />
+
+          {/* ── 14. Metrik Tanımları ── */}
           <section id="metrik" ref={reg("metrik")} className="scroll-mt-4">
             <SectionHeader
               icon={BarChart3} title="Metrik Tanımları" color="bg-cyan-500/15 text-cyan-400 border-cyan-500/25"
