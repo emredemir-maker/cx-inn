@@ -4,7 +4,7 @@ import { Card, PageHeader, StatusBadge, Button, LoadingScreen } from "@/componen
 import { useCustomersList } from "@/hooks/use-customers";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ChevronRight, User, BrainCircuit, Loader2, Sparkles, ChevronDown, CheckCircle2, Layers } from "lucide-react";
+import { ChevronRight, User, BrainCircuit, Loader2, Sparkles, ChevronDown, ChevronUp, ChevronsUpDown, CheckCircle2, Layers } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,18 @@ export default function Customers() {
   const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
   const [bulkDone, setBulkDone] = useState(0);
   const [bulkTotal, setBulkTotal] = useState(0);
+
+  type SortKey = "name" | "nps" | "churn";
+  type SortDir = "asc" | "desc";
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const churnOrder = { low: 1, medium: 2, high: 3 };
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(key === "nps" ? "desc" : "asc"); }
+  };
 
   const getSentimentVariant = (sentiment: string) => {
     switch (sentiment) {
@@ -98,6 +110,18 @@ export default function Customers() {
   const allIds = useMemo(() => (customers || []).map(c => c.id), [customers]);
   const unanalyzedIds = useMemo(() => (customers || []).filter(c => !c.npsScore).map(c => c.id), [customers]);
   const analyzedCount = allIds.length - unanalyzedIds.length;
+
+  const sortedCustomers = useMemo(() => {
+    const list = [...(customers || [])];
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = (a.name || "").localeCompare(b.name || "", "tr");
+      else if (sortKey === "nps") cmp = ((a.npsScore ?? -1) - (b.npsScore ?? -1));
+      else if (sortKey === "churn") cmp = ((churnOrder[a.churnRisk as keyof typeof churnOrder] ?? 0) - (churnOrder[b.churnRisk as keyof typeof churnOrder] ?? 0));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [customers, sortKey, sortDir]);
 
   // Unique segments with their customer IDs
   const segmentGroups = useMemo(() => {
@@ -236,17 +260,38 @@ export default function Customers() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-border/50 bg-white/[0.02]">
-              <th className="p-4 text-sm font-semibold text-muted-foreground">Müşteri</th>
+              <th className="p-4">
+                <button onClick={() => toggleSort("name")} className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group">
+                  Müşteri
+                  <span className="text-muted-foreground/40 group-hover:text-muted-foreground/70">
+                    {sortKey === "name" ? (sortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5 text-primary" /> : <ChevronDown className="w-3.5 h-3.5 text-primary" />) : <ChevronsUpDown className="w-3.5 h-3.5" />}
+                  </span>
+                </button>
+              </th>
               <th className="p-4 text-sm font-semibold text-muted-foreground">Segment</th>
-              <th className="p-4 text-sm font-semibold text-muted-foreground text-center">NPS</th>
+              <th className="p-4 text-center">
+                <button onClick={() => toggleSort("nps")} className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group mx-auto">
+                  NPS
+                  <span className="text-muted-foreground/40 group-hover:text-muted-foreground/70">
+                    {sortKey === "nps" ? (sortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5 text-primary" /> : <ChevronDown className="w-3.5 h-3.5 text-primary" />) : <ChevronsUpDown className="w-3.5 h-3.5" />}
+                  </span>
+                </button>
+              </th>
               <th className="p-4 text-sm font-semibold text-muted-foreground">Duygu Durumu</th>
-              <th className="p-4 text-sm font-semibold text-muted-foreground">Churn Riski</th>
+              <th className="p-4">
+                <button onClick={() => toggleSort("churn")} className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group">
+                  Churn Riski
+                  <span className="text-muted-foreground/40 group-hover:text-muted-foreground/70">
+                    {sortKey === "churn" ? (sortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5 text-primary" /> : <ChevronDown className="w-3.5 h-3.5 text-primary" />) : <ChevronsUpDown className="w-3.5 h-3.5" />}
+                  </span>
+                </button>
+              </th>
               <th className="p-4 text-sm font-semibold text-muted-foreground">Son Etkileşim</th>
               <th className="p-4 text-sm font-semibold text-muted-foreground text-right">Detay</th>
             </tr>
           </thead>
           <tbody>
-            {customers?.map((customer) => (
+            {sortedCustomers.map((customer) => (
               <tr key={customer.id} className="border-b border-border/50 hover:bg-white/[0.02] transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-3">

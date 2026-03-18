@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { Card, PageHeader, Button, LoadingScreen } from "@/components/ui-elements";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   Building2, TrendingUp, Ticket, AlertTriangle, BrainCircuit,
-  ChevronDown, ChevronUp, Tag, Users, CheckCircle, Loader2, ArrowRight,
+  ChevronDown, ChevronUp, ChevronsUpDown, Tag, Users, CheckCircle, Loader2, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
@@ -261,6 +261,15 @@ export default function Companies() {
   const queryClient = useQueryClient();
   const [analyzingCompany, setAnalyzingCompany] = useState<string | null>(null);
 
+  type SortKey = "name" | "nps" | "csat";
+  type SortDir = "asc" | "desc";
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(key === "nps" || key === "csat" ? "desc" : "asc"); }
+  };
+
   const { data: companies, isLoading } = useQuery<Company[]>({
     queryKey: ["companies"],
     queryFn: async () => {
@@ -330,6 +339,18 @@ export default function Companies() {
   const highChurnCompanies = companies?.filter(c => c.highChurnCount > 0).length ?? 0;
   const totalOpenTickets = companies?.reduce((sum, c) => sum + c.openTickets, 0) ?? 0;
 
+  const sortedCompanies = useMemo(() => {
+    const list = [...(companies || [])];
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = (a.company || "").localeCompare(b.company || "", "tr");
+      else if (sortKey === "nps") cmp = ((a.avgNps ?? -1) - (b.avgNps ?? -1));
+      else if (sortKey === "csat") cmp = ((a.avgCsat ?? -1) - (b.avgCsat ?? -1));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [companies, sortKey, sortDir]);
+
   return (
     <Layout>
       <PageHeader
@@ -360,12 +381,30 @@ export default function Companies() {
 
       {/* Column headers */}
       {companies && companies.length > 0 && (
-        <div className="flex items-center gap-4 px-5 mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-          <div className="flex-1">Firma</div>
-          <div className="w-16 text-center">NPS</div>
-          <div className="w-16 text-center">CSAT</div>
-          <div className="w-20 text-center">Açık</div>
-          <div className="w-20 text-center">Yük. Churn</div>
+        <div className="flex items-center gap-4 px-5 mb-2">
+          {(["name", "nps", "csat"] as SortKey[]).map((key) => {
+            const labels: Record<SortKey, string> = { name: "Firma", nps: "NPS", csat: "CSAT" };
+            const widths: Record<SortKey, string> = { name: "flex-1", nps: "w-16", csat: "w-16" };
+            return (
+              <button
+                key={key}
+                onClick={() => toggleSort(key)}
+                className={cn(
+                  "flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest transition-colors",
+                  widths[key],
+                  key !== "name" && "justify-center",
+                  sortKey === key ? "text-primary" : "text-muted-foreground/60 hover:text-muted-foreground"
+                )}
+              >
+                {labels[key]}
+                {sortKey === key
+                  ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)
+                  : <ChevronsUpDown className="w-3 h-3 opacity-40" />}
+              </button>
+            );
+          })}
+          <div className="w-20 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Açık</div>
+          <div className="w-20 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Yük. Churn</div>
           <div className="w-20" />
           <div className="w-4" />
         </div>
@@ -380,7 +419,7 @@ export default function Companies() {
             <p className="text-muted-foreground mt-2">Müşteri kaydı oluştururken firma alanını doldurun.</p>
           </Card>
         ) : (
-          companies.map(c => (
+          sortedCompanies.map(c => (
             <CompanyRow
               key={c.company}
               c={c}
