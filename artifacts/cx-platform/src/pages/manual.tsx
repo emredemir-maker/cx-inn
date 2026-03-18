@@ -21,6 +21,7 @@ interface StepProps { n: number; title: string; children: React.ReactNode }
 interface TipProps { type?: "info" | "warning" | "success"; children: React.ReactNode }
 interface FaqItemProps { q: string; a: string }
 interface ScreenProps { title?: string; children: React.ReactNode; className?: string }
+interface SearchResult { sectionId: string; sectionTitle: string; icon: React.ElementType; color: string; score: number; snippet: string }
 
 /* ─────────────────────────────── Role Badge ─────────────────── */
 
@@ -195,6 +196,105 @@ const SECTIONS: Section[] = [
   { id: "sss",          title: "Sıkça Sorulan Sorular",    icon: HelpCircle,  color: "#a855f7" },
 ];
 
+/* ─────────────────────────────── Semantic Search Index ──────── */
+
+const SECTION_INDEX: Array<{ id: string; title: string; icon: React.ElementType; color: string; keywords: string[]; snippets: string[] }> = [
+  { id: "giris", title: "Platforma Giriş", icon: BookOpen, color: "#6366f1",
+    keywords: ["giriş", "başlangıç", "hoşgeldiniz", "nedir", "genel", "platform", "cx-inn", "login", "oturum", "açılış", "ana sayfa", "dashboard", "gösterge"],
+    snippets: ["Google hesabınızla giriş yapın", "Firebase Authentication ile güvenli oturum", "Ana gösterge paneli temel metrikleri gösterir", "Gemini 2.5 AI tabanlı CX platformu", "NPS ve CSAT tahminleri için AI analizi"] },
+  { id: "rol-sistemi", title: "Rol Sistemi (RBAC)", icon: Shield, color: "#f59e0b",
+    keywords: ["rol", "rbac", "yetki", "süper admin", "superadmin", "cx manager", "cx kullanıcı", "cx_user", "cx_manager", "izin", "erişim", "hiyerarşi", "3 rol", "kademeli"],
+    snippets: ["Süper Admin: tam yetki, sistem yönetimi", "CX Manager: analiz, anket ve kampanya", "CX Kullanıcısı: sınırlı görüntüleme", "Rol bazlı erişim kontrolü (RBAC)", "3 kademeli yetkilendirme"] },
+  { id: "kullanici", title: "Kullanıcı Yönetimi", icon: Users, color: "#8b5cf6",
+    keywords: ["kullanıcı", "davet", "ekle", "sil", "düzenle", "yönet", "ekip", "üye", "personel", "rol atama", "davetiye", "e-posta daveti"],
+    snippets: ["Yeni kullanıcıyı e-posta ile davet edin", "Kullanıcıya rol atayın: Süper Admin, CX Manager, CX Kullanıcısı", "Kullanıcıları listeleyin, düzenleyin veya silin", "Davetli kullanıcı Google hesabıyla giriş yapar"] },
+  { id: "import", title: "Etkileşim İçe Aktarma", icon: Upload, color: "#06b6d4",
+    keywords: ["içe aktar", "import", "yükle", "csv", "excel", "xlsx", "veri", "etkileşim", "dosya", "toplu", "bulk", "upload", "müşteri verisi"],
+    snippets: ["CSV veya Excel ile toplu etkileşim yükleme", "Sütun eşleştirme: müşteri adı, e-posta, kanal, metin", "Yükleme sonrası AI otomatik analiz başlatır", "Hatalı satırlar için önizleme ve doğrulama"] },
+  { id: "ai-analiz", title: "AI Analizi", icon: Brain, color: "#10b981",
+    keywords: ["ai", "yapay zeka", "gemini", "analiz", "nps", "csat", "duygu", "tahmin", "puan", "skor", "sentiment", "nlp", "doğal dil", "segmentasyon", "ağrı noktası", "şikayet"],
+    snippets: ["Gemini 2.5 AI her etkileşimi otomatik analiz eder", "NPS: 0–10 skala, 9–10 Promoter, 7–8 Pasif, 0–6 Detractor", "CSAT: 1–5 müşteri memnuniyeti", "Duygu analizi: Pozitif Negatif Nötr sınıflandırma", "Ağrı noktaları ve şikayet tespiti"] },
+  { id: "anket", title: "Anket Yönetimi", icon: FileText, color: "#3b82f6",
+    keywords: ["anket", "survey", "soru", "form", "geri bildirim", "feedback", "nps anketi", "csat anketi", "oluştur", "yayınla", "şablon", "tasarım"],
+    snippets: ["Yeni anket oluşturun veya şablondan başlayın", "NPS ve CSAT anket şablonları hazır", "Anket onay akışına gönderilir", "Yayınlanan anket e-posta ile gönderilir", "Cevap oranı ve sonuç analizi"] },
+  { id: "kampanya", title: "Kampanya Yönetimi", icon: Megaphone, color: "#ec4899",
+    keywords: ["kampanya", "campaign", "e-posta", "email", "gönder", "mail", "toplu gönderim", "segmentasyon", "hedef kitle", "kişiselleştirme", "ai e-posta", "hyper personalized", "resend"],
+    snippets: ["Müşteri segmentlerine hedefli kampanya", "AI ile kişiselleştirilmiş e-posta içeriği", "Kampanyayı onay akışına gönderin", "Açılma oranı ve tıklama analitiği", "Hyper-personalized AI e-posta"] },
+  { id: "onay", title: "Onay Akışı", icon: CheckSquare, color: "#f97316",
+    keywords: ["onay", "approval", "akış", "workflow", "bekleyen", "onayla", "reddet", "yönetici onayı", "taslak", "yayınla", "review", "inceleme"],
+    snippets: ["Anket ve kampanyalar onay akışına girer", "CX Manager veya Süper Admin onayla veya reddet", "Reddedilen içerik gerekçesiyle iade edilir", "Bekleyen onaylar bildirim olarak gösterilir"] },
+  { id: "zero-survey", title: "Sıfır-Anket Motoru", icon: Zap, color: "#84cc16",
+    keywords: ["sıfır anket", "zero survey", "pasif", "arka plan", "otomatik analiz", "anket göndermeden", "pasif izleme", "nlp", "etkileşim tabanlı"],
+    snippets: ["Müşteriye anket göndermeden memnuniyet tahmini", "Mevcut etkileşimler AI ile sürekli analiz edilir", "Pasif izleme: kanal bağımsız, gerçek zamanlı", "Müşteri profili otomatik güncellenir"] },
+  { id: "ayarlar", title: "Ayarlar & API", icon: Settings, color: "#64748b",
+    keywords: ["ayarlar", "settings", "api", "entegrasyon", "api anahtarı", "webhook", "şirket bilgileri", "bildirim", "güvenlik", "pii", "maskeleme", "rest api", "endpoint", "bearer"],
+    snippets: ["Şirket bilgileri: ad, logo, sektör, iletişim", "REST API anahtarı oluşturun ve yönetin", "GET /customers, POST /interactions, GET /analytics/nps", "PII maskeleme: kişisel veri anonimleştirme", "Authorization: Bearer cx_live_xxxx"] },
+  { id: "rol-gorunum", title: "Rol Görünümü (View As)", icon: Eye, color: "#f59e0b",
+    keywords: ["view as", "rol görünümü", "önizleme", "simüle", "test", "göz ikonu", "impersonate", "önizleme modu", "sarı banner", "başka rol", "rol değiştir"],
+    snippets: ["Süper Admin olarak başka rolün bakış açısını görün", "Üst çubukta göz ikonu ile View As", "Sarı banner: Önizleme Modu aktif olduğunda belirir", "CX Manager veya CX Kullanıcısı görünümü", "Gerçek oturum korunur kapanmaz"] },
+  { id: "yetki-matrisi", title: "Yetki Matrisi", icon: Lock, color: "#ec4899",
+    keywords: ["yetki matrisi", "permission matrix", "yetki düzenle", "erişim seviyesi", "tam erişim", "erişim yok", "kısıtlı", "modül erişimi", "pii yetki", "eylem yetki", "sıfırla", "reset", "veritabanı yetki"],
+    snippets: ["Modül erişimi: Tam Erişim, Görüntüleme, Kısıtlı, Onay Gerekli, Erişim Yok", "PII sekmesi: e-posta maskeleme", "Eylem Yetkileri: Silme, Düzenleme, Onaylama", "Değişiklikler veritabanına kaydedilir anında etkili", "Süper Admin sütunu kilitlidir"] },
+  { id: "metrik", title: "Metrik Tanımları", icon: BarChart3, color: "#06b6d4",
+    keywords: ["metrik", "tanım", "nps", "csat", "churn", "retention", "promoter", "detractor", "pasif", "puan", "benchmark", "iyi aralık", "hedef", "analitik"],
+    snippets: ["NPS: 0–10, 9–10 Promoter, 7–8 Pasif, 0–6 Detractor", "CSAT: 1–5 müşteri memnuniyet puanı", "Churn Riski: yüksek orta düşük", "Retention Rate: müşteriyi elde tutma oranı", "İyi NPS hedefi: 8.5+"] },
+  { id: "sss", title: "Sıkça Sorulan Sorular", icon: HelpCircle, color: "#a855f7",
+    keywords: ["sss", "soru", "cevap", "yardım", "sorun", "hata", "faq", "destek", "support", "problem", "çözüm", "neden", "nasıl"],
+    snippets: ["Sık sorulan sorular ve cevapları", "AI analizi neden başarısız olur?", "Anket onayda ne kadar bekler?", "CSV yükleme formatı nasıl olmalı?", "Kullanıcı daveti e-posta gelmiyor"] },
+];
+
+function semanticSearch(query: string): SearchResult[] {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const words = q.split(/\s+/).filter((w) => w.length >= 2);
+  const results: SearchResult[] = [];
+
+  for (const entry of SECTION_INDEX) {
+    let score = 0;
+    let bestSnippet = "";
+    let bestSnippetScore = 0;
+
+    const titleLower = entry.title.toLowerCase();
+    if (titleLower === q) score += 200;
+    else if (titleLower.includes(q)) score += 100;
+    else { for (const w of words) { if (titleLower.includes(w)) score += 40; } }
+
+    for (const kw of entry.keywords) {
+      const kl = kw.toLowerCase();
+      if (kl === q) score += 80;
+      else if (kl.includes(q)) score += 50;
+      else if (q.includes(kl) && kl.length >= 3) score += 35;
+      else { for (const w of words) { if (kl.includes(w) || w.includes(kl)) score += 20; } }
+    }
+
+    for (const snippet of entry.snippets) {
+      const sl = snippet.toLowerCase();
+      let snScore = 0;
+      if (sl.includes(q)) snScore = 60;
+      else { for (const w of words) { if (sl.includes(w)) snScore += 15; } }
+      if (snScore > bestSnippetScore) { bestSnippetScore = snScore; bestSnippet = snippet; }
+      score += snScore;
+    }
+
+    if (score > 0) results.push({ sectionId: entry.id, sectionTitle: entry.title, icon: entry.icon, color: entry.color, score, snippet: bestSnippet || entry.snippets[0] || "" });
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, 6);
+}
+
+function highlight(text: string, query: string): React.ReactNode {
+  const q = query.trim();
+  if (!q || q.length < 2) return text;
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) {
+    const word = q.split(/\s+/).find((w) => text.toLowerCase().includes(w.toLowerCase()));
+    if (!word) return text;
+    const wi = text.toLowerCase().indexOf(word.toLowerCase());
+    return <>{text.slice(0, wi)}<mark className="bg-indigo-500/30 text-indigo-200 rounded-[2px] px-0.5">{text.slice(wi, wi + word.length)}</mark>{text.slice(wi + word.length)}</>;
+  }
+  return <>{text.slice(0, idx)}<mark className="bg-indigo-500/30 text-indigo-200 rounded-[2px] px-0.5">{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</>;
+}
+
 /* ─────────────────────────────── Main Page ─────────────────── */
 
 export default function ManualPage() {
@@ -218,9 +318,11 @@ export default function ManualPage() {
     return () => observer.disconnect();
   }, []);
 
-  const filteredSections = SECTIONS.filter((s) =>
-    !search || s.title.toLowerCase().includes(search.toLowerCase()),
-  );
+  const searchResults: SearchResult[] = semanticSearch(search);
+  const isSearching = search.trim().length >= 2;
+  const filteredSections = isSearching
+    ? SECTIONS.filter((s) => searchResults.some((r) => r.sectionId === s.id))
+    : SECTIONS;
 
   const scrollTo = (id: string) => {
     sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -236,41 +338,85 @@ export default function ManualPage() {
 
         {/* ── Sticky Sidebar ── */}
         <aside className="w-56 shrink-0 sticky top-4 self-start max-h-[calc(100vh-100px)] overflow-y-auto pr-1 hidden lg:block">
-          <div className="relative mb-4">
+          <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Bölüm ara..."
-              className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              placeholder="Kılavuzda ara…"
+              className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl pl-8 pr-8 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400">
+                <span className="text-[10px]">✕</span>
+              </button>
+            )}
           </div>
 
-          <nav className="space-y-0.5">
-            {filteredSections.map((s) => {
-              const Icon = s.icon;
-              const isActive = activeId === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => scrollTo(s.id)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-left transition-all",
-                    isActive
-                      ? "bg-indigo-600/15 text-indigo-300 font-semibold border border-indigo-500/20"
-                      : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200",
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: isActive ? s.color : undefined }} />
-                  <span className="truncate">{s.title}</span>
-                  {isActive && <ChevronRight className="w-3 h-3 ml-auto text-indigo-500" />}
-                </button>
-              );
-            })}
-          </nav>
+          {isSearching ? (
+            /* ── Semantic search results ── */
+            <div className="space-y-1">
+              <p className="text-[10px] text-slate-600 px-1 mb-2">
+                {searchResults.length > 0 ? `${searchResults.length} sonuç bulundu` : "Sonuç bulunamadı"}
+              </p>
+              {searchResults.length === 0 && (
+                <div className="px-3 py-4 text-center">
+                  <Search className="w-5 h-5 text-slate-700 mx-auto mb-2" />
+                  <p className="text-[11px] text-slate-600">"{search}" için eşleşme yok</p>
+                  <p className="text-[10px] text-slate-700 mt-1">Farklı bir kelime deneyin</p>
+                </div>
+              )}
+              {searchResults.map((r) => {
+                const Icon = r.icon;
+                return (
+                  <button
+                    key={r.sectionId}
+                    onClick={() => { scrollTo(r.sectionId); setSearch(""); }}
+                    className="w-full text-left rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/70 hover:border-indigo-500/30 transition-all p-2.5 group"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className="w-3 h-3 shrink-0" style={{ color: r.color }} />
+                      <span className="text-[11px] font-semibold text-slate-200 truncate group-hover:text-white">
+                        {highlight(r.sectionTitle, search)}
+                      </span>
+                    </div>
+                    {r.snippet && (
+                      <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2 pl-5">
+                        {highlight(r.snippet, search)}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── Normal nav ── */
+            <nav className="space-y-0.5">
+              {filteredSections.map((s) => {
+                const Icon = s.icon;
+                const isActive = activeId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => scrollTo(s.id)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-left transition-all",
+                      isActive
+                        ? "bg-indigo-600/15 text-indigo-300 font-semibold border border-indigo-500/20"
+                        : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200",
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: isActive ? s.color : undefined }} />
+                    <span className="truncate">{s.title}</span>
+                    {isActive && <ChevronRight className="w-3 h-3 ml-auto text-indigo-500" />}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
 
           {/* Role tag */}
-          {user?.role && (
+          {!isSearching && user?.role && (
             <div className="mt-6 p-3 rounded-xl bg-slate-800/40 border border-slate-700/40">
               <p className="text-[10px] text-slate-600 mb-1.5">Aktif rolünüz</p>
               <RoleBadge role={user.role as RoleBadgeProps["role"]} size="md" />
