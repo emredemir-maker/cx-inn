@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
-import { useAppAuth } from "@/context/auth-context";
+import { usePermissions } from "@/context/permissions-context";
 
 function maskEmail(email: string): string {
   if (!email) return "";
@@ -227,7 +227,7 @@ function CompanyRow({ c, analyzing, onAnalyze }: { c: Company; analyzing: boolea
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">{cust.name}</p>
-                        <p className="text-xs text-muted-foreground">{isCxUser ? maskEmail(cust.email) : cust.email}</p>
+                        <p className="text-xs text-muted-foreground">{maskEmailField ? maskEmail(cust.email) : cust.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -254,8 +254,8 @@ function CompanyRow({ c, analyzing, onAnalyze }: { c: Company; analyzing: boolea
 
 export default function Companies() {
   const { toast } = useToast();
-  const { user } = useAppAuth();
-  const isCxUser = user?.role === "cx_user";
+  const { myPiiLevel } = usePermissions();
+  const maskEmailField = myPiiLevel("email") === "masked";
   const queryClient = useQueryClient();
   const [analyzingCompany, setAnalyzingCompany] = useState<string | null>(null);
 

@@ -26,6 +26,7 @@ import apiKeysRouter from "./api-keys";
 import usersRouter from "./users";
 import approvalsRouter from "./approvals";
 import invitationsRouter from "./invitations";
+import permissionsRouter from "./permissions";
 import v1Router from "./v1/index";
 
 const router: IRouter = Router();
@@ -57,6 +58,7 @@ router.use(apiKeysRouter);
 router.use(usersRouter);
 router.use(approvalsRouter);
 router.use(invitationsRouter);
+router.use(permissionsRouter);
 router.use(v1Router);
 
 export default router;

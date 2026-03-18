@@ -8,7 +8,7 @@ import { ChevronRight, User, BrainCircuit, Loader2, Sparkles, ChevronDown, Check
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { useAppAuth } from "@/context/auth-context";
+import { usePermissions } from "@/context/permissions-context";
 
 function maskEmail(email: string): string {
   if (!email) return "";
@@ -19,8 +19,8 @@ function maskEmail(email: string): string {
 }
 
 export default function Customers() {
-  const { user } = useAppAuth();
-  const isCxUser = user?.role === "cx_user";
+  const { myPiiLevel } = usePermissions();
+  const maskEmailField = myPiiLevel("email") === "masked";
   const { data: customers, isLoading } = useCustomersList();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -255,7 +255,7 @@ export default function Customers() {
                     </div>
                     <div>
                       <p className="font-medium text-foreground">{customer.name}</p>
-                      <p className="text-xs text-muted-foreground">{isCxUser ? maskEmail(customer.email) : customer.email}</p>
+                      <p className="text-xs text-muted-foreground">{maskEmailField ? maskEmail(customer.email) : customer.email}</p>
                     </div>
                   </div>
                 </td>

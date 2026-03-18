@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
 import { AuthContext } from "@/context/auth-context";
 import { RolePreviewProvider } from "@/context/role-preview-context";
+import { PermissionsProvider } from "@/context/permissions-context";
 
 import Dashboard from "./pages/dashboard";
 import Surveys from "./pages/surveys";
@@ -89,7 +90,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         logout: auth.logout,
       }}
     >
-      {children}
+      <PermissionsProvider>
+        {children}
+      </PermissionsProvider>
     </AuthContext.Provider>
   );
 }

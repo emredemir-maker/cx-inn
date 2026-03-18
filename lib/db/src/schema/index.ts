@@ -18,3 +18,4 @@ export * from "./company_settings";
 export * from "./api_keys";
 export * from "./auth";
 export * from "./invitations";
+export * from "./role_permissions";
