@@ -268,7 +268,7 @@ export default function Customers() {
                   </span>
                 </button>
               </th>
-              <th className="p-4 text-sm font-semibold text-muted-foreground">Segment</th>
+              <th className="p-4 text-sm font-semibold text-muted-foreground">Firma / Segment</th>
               <th className="p-4 text-center">
                 <button onClick={() => toggleSort("nps")} className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group mx-auto">
                   NPS
@@ -304,7 +304,16 @@ export default function Customers() {
                     </div>
                   </div>
                 </td>
-                <td className="p-4"><StatusBadge status={customer.segment} variant="outline" /></td>
+                <td className="p-4">
+                  <div className="flex flex-col gap-1">
+                    {customer.company
+                      ? <span className="text-sm font-medium text-foreground">{customer.company}</span>
+                      : <span className="text-sm text-muted-foreground/40">—</span>}
+                    {customer.segment && customer.segment !== "Genel" && (
+                      <StatusBadge status={customer.segment} variant="outline" />
+                    )}
+                  </div>
+                </td>
                 <td className="p-4 text-center font-mono font-bold text-primary">{customer.npsScore || "—"}</td>
                 <td className="p-4">
                   {customer.sentiment ? (
