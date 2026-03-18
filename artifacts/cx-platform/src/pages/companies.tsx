@@ -66,6 +66,8 @@ function resolutionTime(secs: number | null) {
 
 function CompanyRow({ c, analyzing, onAnalyze }: { c: Company; analyzing: boolean; onAnalyze: () => void }) {
   const [open, setOpen] = useState(false);
+  const { myPiiLevel } = usePermissions();
+  const maskEmailField = myPiiLevel("email") === "masked";
   const { data: customers } = useQuery<CompanyCustomer[]>({
     queryKey: ["company-customers", c.company],
     queryFn: async () => {
