@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { surveyTestSendsTable, surveysTable, surveyResponsesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { sendEmail } from "../services/email";
 
 const router = Router();
 
@@ -97,32 +98,45 @@ router.post("/surveys/:surveyId/test-send", async (req, res) => {
       sentAt: new Date(),
     });
 
-    // Try sending email via Resend
+    // Try sending email — Gmail (primary) → Resend (fallback)
     let emailSent = false;
     let emailError = "";
 
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey) {
-      try {
-        const { Resend } = await import("resend");
-        const resend = new Resend(resendKey);
-        const htmlContent = buildEmailHtml(survey, surveyUrl);
-        const sendResult = await resend.emails.send({
-          from: `CX-Inn Test <onboarding@resend.dev>`,
-          to: [email],
-          subject: `[TEST] ${survey.title} — ${survey.type} Anketi`,
-          html: htmlContent,
-        });
-        if (sendResult.error) {
-          emailError = sendResult.error.message ?? "E-posta gönderilemedi.";
-        } else {
-          emailSent = true;
-        }
-      } catch (e: any) {
-        emailError = e.message ?? "E-posta gönderiminde hata.";
-      }
+    const htmlContent = buildEmailHtml(survey, surveyUrl);
+
+    // 1) Try Gmail (nodemailer) first
+    const gmailResult = await sendEmail({
+      to: email,
+      subject: `[TEST] ${survey.title} — ${survey.type} Anketi`,
+      html: htmlContent,
+    });
+
+    if (gmailResult.success) {
+      emailSent = true;
     } else {
-      emailError = "RESEND_API_KEY yapılandırılmamış. Anket bağlantısını manuel kullanabilirsiniz.";
+      // 2) Fallback to Resend if Gmail is not configured or fails
+      const resendKey = process.env.RESEND_API_KEY;
+      if (resendKey) {
+        try {
+          const { Resend } = await import("resend");
+          const resend = new Resend(resendKey);
+          const sendResult = await resend.emails.send({
+            from: `CX-Inn Test <onboarding@resend.dev>`,
+            to: [email],
+            subject: `[TEST] ${survey.title} — ${survey.type} Anketi`,
+            html: htmlContent,
+          });
+          if (sendResult.error) {
+            emailError = sendResult.error.message ?? "E-posta gönderilemedi.";
+          } else {
+            emailSent = true;
+          }
+        } catch (e: any) {
+          emailError = e.message ?? "E-posta gönderiminde hata.";
+        }
+      } else {
+        emailError = gmailResult.error ?? "E-posta servisi yapılandırılmamış. Anket bağlantısını manuel kullanabilirsiniz.";
+      }
     }
 
     res.json({

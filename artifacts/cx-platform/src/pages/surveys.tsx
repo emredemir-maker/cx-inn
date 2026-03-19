@@ -33,6 +33,8 @@ interface EmailDesign {
   bgColor: string;
   textColor: string;
   buttonStyle: "rounded" | "pill" | "square";
+  ratingStyle?: "emoji" | "stars" | "numbers" | "thumbs";
+  npsStyle?: "color_numbers" | "minimal";
   blockOrder?: string[];
   hiddenBlocks?: string[];
 }
@@ -87,13 +89,45 @@ function blockHtml(type: string, blockId: string, d: EmailDesign): string {
       return `<tr><td style="padding:12px 40px 0;text-align:center;"><p style="font-size:15px;color:${d.textColor}99;margin:0;line-height:1.6;">${d.subheadline}</p></td></tr>`;
     case "score": {
       if (type === "NPS") {
+        const npsStyle = (d as any).npsStyle ?? "color_numbers";
         const nums = Array.from({ length: 11 }, (_, i) => {
-          const c = i <= 6 ? "#ef4444" : i <= 8 ? "#f59e0b" : "#22c55e";
-          return `<td style="padding:3px;"><a href="#" style="display:inline-block;width:40px;height:40px;line-height:40px;text-align:center;background:${c}22;color:${c};font-weight:700;font-size:15px;border:2px solid ${c};border-radius:${r};text-decoration:none;">${i}</a></td>`;
+          const c = npsStyle === "color_numbers"
+            ? (i <= 6 ? "#ef4444" : i <= 8 ? "#f59e0b" : "#22c55e")
+            : d.textColor;
+          const bg = npsStyle === "color_numbers" ? `${c}22` : "rgba(255,255,255,0.07)";
+          const border = npsStyle === "color_numbers" ? `2px solid ${c}` : `1px solid rgba(255,255,255,0.18)`;
+          return `<td style="padding:3px;"><a href="#" style="display:inline-block;width:40px;height:40px;line-height:40px;text-align:center;background:${bg};color:${c};font-weight:700;font-size:15px;border:${border};border-radius:${r};text-decoration:none;">${i}</a></td>`;
         }).join("");
         return `<tr><td style="padding:28px 40px;text-align:center;"><table cellpadding="0" cellspacing="0" style="margin:0 auto 10px;"><tr>${nums}</tr></table><table cellpadding="0" cellspacing="0" style="margin:0 auto;width:390px;"><tr><td style="font-size:11px;color:#ef4444;text-align:left;">Kesinlikle önermem (0)</td><td style="font-size:11px;color:#22c55e;text-align:right;">Kesinlikle öneririm (10)</td></tr></table></td></tr>`;
       }
       if (type === "CSAT") {
+        const ratingStyle = (d as any).ratingStyle ?? "emoji";
+        if (ratingStyle === "stars") {
+          const starColors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e"];
+          const starCells = starColors.map((c, i) => {
+            const stars = Array.from({ length: 5 }, (_, si) =>
+              `<span style="color:${si <= i ? c : "rgba(255,255,255,0.15)"};font-size:22px;">★</span>`
+            ).join("");
+            return `<td style="padding:6px;text-align:center;"><a href="#" style="text-decoration:none;"><div style="padding:10px 8px;background:${c}10;border:2px solid ${c}30;border-radius:${r};margin-bottom:4px;">${stars}</div><div style="font-size:10px;color:${c};font-weight:600;">${i + 1} Yıldız</div></a></td>`;
+          }).join("");
+          return `<tr><td style="padding:28px 40px;text-align:center;"><table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>${starCells}</tr></table></td></tr>`;
+        }
+        if (ratingStyle === "numbers") {
+          const numColors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e"];
+          const numLabels = ["Çok Kötü", "Kötü", "Orta", "İyi", "Mükemmel"];
+          const numCells = numLabels.map((lbl, i) => `<td style="padding:6px;text-align:center;"><a href="#" style="text-decoration:none;"><div style="width:60px;height:60px;line-height:60px;text-align:center;background:${numColors[i]}22;border:2px solid ${numColors[i]};border-radius:${r};font-weight:800;font-size:22px;color:${numColors[i]};margin-bottom:6px;">${i + 1}</div><div style="font-size:10px;color:${numColors[i]};font-weight:600;">${lbl}</div></a></td>`).join("");
+          return `<tr><td style="padding:28px 40px;text-align:center;"><table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>${numCells}</tr></table></td></tr>`;
+        }
+        if (ratingStyle === "thumbs") {
+          const thumbs = [
+            { icon: "👎", label: "Kötü", c: "#ef4444" },
+            { icon: "😐", label: "Orta", c: "#f59e0b" },
+            { icon: "👍", label: "İyi", c: "#22c55e" },
+          ];
+          const thumbCells = thumbs.map((e) => `<td style="padding:12px;text-align:center;"><a href="#" style="text-decoration:none;"><div style="width:88px;height:88px;line-height:88px;text-align:center;background:${e.c}18;border:2px solid ${e.c}44;border-radius:${r};font-size:42px;margin-bottom:8px;">${e.icon}</div><div style="font-size:12px;color:${e.c};font-weight:700;">${e.label}</div></a></td>`).join("");
+          return `<tr><td style="padding:28px 40px;text-align:center;"><table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>${thumbCells}</tr></table></td></tr>`;
+        }
+        // default: emoji
         const emojis = [
           { icon: "😡", label: "Çok Kötü", c: "#ef4444" }, { icon: "😕", label: "Kötü", c: "#f97316" },
           { icon: "😐", label: "Orta", c: "#f59e0b" }, { icon: "😊", label: "İyi", c: "#84cc16" },
@@ -341,7 +375,7 @@ function EmailDesignModal({ survey, onClose, onSave }: EmailDesignModalProps) {
                             <p className="text-[10px] text-muted-foreground/60 truncate">{meta.desc(design)}</p>
                           </div>
                           {/* Expand button (for editable blocks) */}
-                          {!isHidden && blockId !== "score" && (
+                          {!isHidden && (
                             <button type="button" onClick={() => setExpandedBlock(isExpanded ? null : blockId)}
                               className="text-muted-foreground/50 hover:text-primary transition-colors p-1 rounded"
                               title="Düzenle">
@@ -380,6 +414,49 @@ function EmailDesignModal({ survey, onClose, onSave }: EmailDesignModalProps) {
                             {blockId === "note" && (
                               <textarea value={design.footerNote} onChange={(e) => set("footerNote", e.target.value)}
                                 rows={2} className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-border/50 text-foreground text-xs resize-none focus:outline-none focus:border-primary/50" />
+                            )}
+                            {blockId === "score" && survey.type === "CSAT" && (
+                              <div className="space-y-2">
+                                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">CSAT Puanlama Stili</p>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {([
+                                    { value: "emoji", label: "Emoji 😍😡" },
+                                    { value: "stars", label: "Yıldız ★★★★★" },
+                                    { value: "numbers", label: "Sayı  1 2 3 4 5" },
+                                    { value: "thumbs", label: "Thumbs 👍😐👎" },
+                                  ] as const).map((opt) => (
+                                    <button key={opt.value} type="button"
+                                      onClick={() => setDesign((d) => ({ ...d, ratingStyle: opt.value }))}
+                                      className={cn("px-2 py-1.5 rounded-lg border text-xs font-medium transition-all text-left",
+                                        (design.ratingStyle ?? "emoji") === opt.value
+                                          ? "border-primary bg-primary/15 text-primary"
+                                          : "border-border/30 bg-white/[0.02] text-muted-foreground hover:border-border hover:text-foreground")}>
+                                      {opt.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {blockId === "score" && survey.type === "NPS" && (
+                              <div className="space-y-2">
+                                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">NPS Renk Şeması</p>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {([
+                                    { value: "color_numbers", label: "🎨 Renkli (0-10)" },
+                                    { value: "minimal", label: "◻ Minimal" },
+                                  ] as const).map((opt) => (
+                                    <button key={opt.value} type="button"
+                                      onClick={() => setDesign((d) => ({ ...d, npsStyle: opt.value }))}
+                                      className={cn("px-2 py-1.5 rounded-lg border text-xs font-medium transition-all text-left",
+                                        (design.npsStyle ?? "color_numbers") === opt.value
+                                          ? "border-primary bg-primary/15 text-primary"
+                                          : "border-border/30 bg-white/[0.02] text-muted-foreground hover:border-border hover:text-foreground")}>
+                                      {opt.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground/50">Minimal: Kurumsal NPS anketleri için emoji ve renk kodlamasız sade görünüm</p>
+                              </div>
                             )}
                           </div>
                         )}

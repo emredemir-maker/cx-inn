@@ -70,7 +70,8 @@ router.post("/", async (req, res) => {
     const interaction = await insertInteraction(customer.id, validated.value);
     res.status(201).json({ ok: true, customerId: customer.id, interactionId: interaction.id });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error("[v1/interactions POST]", err);
+    res.status(500).json({ error: "Kayıt oluşturulurken bir hata oluştu." });
   }
 });
 
@@ -96,7 +97,8 @@ router.post("/batch", async (req, res) => {
       const interaction = await insertInteraction(customer.id, validated.value);
       results.push({ index: i, ok: true, customerId: customer.id, interactionId: interaction.id });
     } catch (err) {
-      results.push({ index: i, ok: false, error: String(err) });
+      console.error(`[v1/interactions batch] index ${i}:`, err);
+      results.push({ index: i, ok: false, error: "Kayıt oluşturulurken bir hata oluştu." });
     }
   }
   const successCount = results.filter((r) => r.ok).length;

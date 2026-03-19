@@ -396,6 +396,13 @@ type PersonalizedEmail = {
   tone_note: string;
 };
 
+type SegmentRec = {
+  targetKey: string;
+  targetName: string;
+  reason: string;
+  priority: number;
+};
+
 function AiPersonalizeModal({
   surveys,
   segments,
@@ -418,10 +425,31 @@ function AiPersonalizeModal({
   const [total, setTotal] = useState(0);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [segmentRecs, setSegmentRecs] = useState<SegmentRec[]>([]);
+  const [recsLoading, setRecsLoading] = useState(false);
+  const [recsLoaded, setRecsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!surveyId) { setSegmentRecs([]); setRecsLoaded(false); return; }
+    const survey = surveys?.find((s: any) => String(s.id) === surveyId);
+    if (!survey) return;
+    setRecsLoading(true);
+    setRecsLoaded(false);
+    setSegmentRecs([]);
+    fetch("/api/campaigns/ai-segment-recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surveyType: survey.type, surveyTitle: survey.title }),
+    })
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data.recommendations)) setSegmentRecs(data.recommendations); })
+      .catch(() => {})
+      .finally(() => { setRecsLoading(false); setRecsLoaded(true); });
+  }, [surveyId]);
 
   const selectedSurvey = surveys?.find((s: any) => String(s.id) === surveyId);
 
-  const targetOptions = [
+  const standardTargetOptions = [
     { key: "all", label: "Tüm Müşteriler", category: "Genel" },
     { key: "high_churn", label: "Yüksek Churn Riskli", category: "Churn" },
     { key: "mid_churn", label: "Orta Churn Riskli", category: "Churn" },
@@ -429,8 +457,13 @@ function AiPersonalizeModal({
     { key: "sentiment_positive", label: "Pozitif Duygu", category: "Duygu" },
     { key: "sentiment_neutral", label: "Nötr Duygu", category: "Duygu" },
     { key: "sentiment_negative", label: "Negatif Duygu", category: "Duygu" },
-    ...(segments ?? []).map((s: any) => ({ key: `seg_${s.id}`, label: s.name, category: "Segment" })),
   ];
+  const customSegmentOptions = (segments ?? []).map((s: any) => ({
+    key: `seg_${s.id}`,
+    label: s.name,
+    category: "Segment",
+    customerCount: (s as any).customerCount ?? 0,
+  }));
 
   const handleGenerate = async () => {
     if (!surveyId) { toast({ title: "Anket seçin", variant: "destructive" }); return; }
@@ -536,10 +569,63 @@ function AiPersonalizeModal({
               </select>
             </div>
 
+            {/* AI segment recommendation */}
+            {surveyId && (
+              <div className="p-4 bg-indigo-950/40 border border-indigo-500/20 rounded-xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-400" />
+                  <span className="text-sm font-bold text-indigo-300">AI Segment Önerisi</span>
+                  {recsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400 ml-auto" />}
+                  {!recsLoading && recsLoaded && (
+                    <span className="ml-auto text-[10px] text-indigo-400/60 font-medium">Gemini tarafından önerildi</span>
+                  )}
+                </div>
+                {recsLoading && (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-14 rounded-xl bg-slate-800/60 animate-pulse" />
+                    ))}
+                  </div>
+                )}
+                {!recsLoading && segmentRecs.length > 0 && (
+                  <div className="space-y-1.5">
+                    {segmentRecs.map((rec) => (
+                      <button key={rec.targetKey} type="button"
+                        onClick={() => setTargetKey(rec.targetKey)}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 rounded-xl border transition-all",
+                          targetKey === rec.targetKey
+                            ? "bg-indigo-500/20 border-indigo-500 text-indigo-200"
+                            : "bg-slate-800/60 border-slate-700 hover:border-indigo-500/40 text-slate-300"
+                        )}>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={cn(
+                            "text-[10px] font-bold px-1.5 py-0.5 rounded-md",
+                            rec.priority === 1
+                              ? "bg-amber-500/20 text-amber-400"
+                              : rec.priority === 2
+                              ? "bg-slate-600 text-slate-300"
+                              : "bg-slate-700/60 text-slate-500"
+                          )}>#{rec.priority}</span>
+                          <span className="text-sm font-semibold">{rec.targetName}</span>
+                          {targetKey === rec.targetKey && <Check className="h-3.5 w-3.5 text-indigo-400 ml-auto" />}
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">{rec.reason}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!recsLoading && recsLoaded && segmentRecs.length === 0 && (
+                  <p className="text-xs text-slate-500 italic text-center py-2">Öneri oluşturulamadı. Aşağıdan manuel seçim yapın.</p>
+                )}
+              </div>
+            )}
+
+            {/* Hedef Kitle — Standard Groups */}
             <div>
-              <Label className="text-sm font-semibold text-slate-300 mb-2 block">Hedef Kitle</Label>
+              <Label className="text-sm font-semibold text-slate-300 mb-2 block">Hedef Kitle — Müşteri Grupları</Label>
               <div className="grid grid-cols-2 gap-2">
-                {targetOptions.map((opt) => (
+                {standardTargetOptions.map((opt) => (
                   <button key={opt.key} type="button" onClick={() => setTargetKey(opt.key)}
                     className={cn("flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition-all",
                       targetKey === opt.key
@@ -551,6 +637,33 @@ function AiPersonalizeModal({
                 ))}
               </div>
             </div>
+
+            {/* Hedef Kitle — Custom Segments */}
+            {customSegmentOptions.length > 0 && (
+              <div>
+                <Label className="text-sm font-semibold text-slate-300 mb-2 block flex items-center gap-2">
+                  <Tag className="h-3.5 w-3.5 text-violet-400" />
+                  Özel Segmentler
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400 font-bold">{customSegmentOptions.length}</span>
+                </Label>
+                <div className="space-y-1.5">
+                  {customSegmentOptions.map((opt) => (
+                    <button key={opt.key} type="button" onClick={() => setTargetKey(opt.key)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm text-left transition-all",
+                        targetKey === opt.key
+                          ? "bg-violet-500/15 border-violet-500 text-violet-200"
+                          : "bg-slate-800 border-slate-700 text-slate-300 hover:border-violet-500/40"
+                      )}>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-violet-500/10 text-violet-400 font-medium shrink-0">SEG</span>
+                      <span className="flex-1 truncate">{opt.label}</span>
+                      <span className="text-[11px] text-slate-500 shrink-0">{opt.customerCount} kişi</span>
+                      {targetKey === opt.key && <Check className="h-3.5 w-3.5 text-violet-400 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
               <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
