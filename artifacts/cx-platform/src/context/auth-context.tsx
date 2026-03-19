@@ -5,12 +5,14 @@ import type { AppUser } from "@/hooks/use-firebase-auth";
 export interface AuthContextValue {
   user: AppUser | null;
   isAuthenticated: boolean;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue>({
   user: null,
   isAuthenticated: false,
+  login: async () => {},
   logout: async () => {},
 });
 

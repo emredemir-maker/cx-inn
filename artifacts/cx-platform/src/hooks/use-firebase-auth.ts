@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -63,7 +62,7 @@ export function useFirebaseAuth(): AuthState {
     let cancelled = false;
 
     async function init() {
-      // First check if there's an existing session on the backend
+      // Check if there's an existing session on the backend
       const sessionUser = await fetchCurrentUser();
       if (sessionUser) {
         if (!cancelled) {
@@ -72,24 +71,7 @@ export function useFirebaseAuth(): AuthState {
         }
         return;
       }
-
-      // Check if we're coming back from a Google redirect
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          const idToken = await result.user.getIdToken();
-          const appUser = await exchangeToken(idToken);
-          if (!cancelled) {
-            setUser(appUser);
-          }
-        }
-      } catch (err) {
-        console.error("Redirect result error:", err);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+      if (!cancelled) setIsLoading(false);
     }
 
     init();
@@ -100,8 +82,14 @@ export function useFirebaseAuth(): AuthState {
     const provider = new GoogleAuthProvider();
     provider.addScope("email");
     provider.addScope("profile");
-    await signInWithRedirect(auth, provider);
-    // Page will redirect — nothing after this runs
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+      const appUser = await exchangeToken(idToken);
+      setUser(appUser);
+    } catch (err) {
+      console.error("[Auth] Popup sign-in error:", err);
+    }
   }, []);
 
   const logout = useCallback(async () => {

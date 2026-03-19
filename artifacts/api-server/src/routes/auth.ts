@@ -17,10 +17,12 @@ const SUPERADMIN_EMAIL = "emre.demir@infoset.app";
 
 const router: IRouter = Router();
 
+const IS_PROD = process.env.NODE_ENV === "production";
+
 function setSessionCookie(res: Response, sid: string) {
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
-    secure: true,
+    secure: IS_PROD,
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_TTL,

@@ -25,6 +25,7 @@ import UserManagementPage from "./pages/user-management";
 import ApprovalsPage from "./pages/approvals";
 import ManualPage from "./pages/manual";
 import PermissionsPage from "./pages/permissions";
+import TagTaxonomyPage from "./pages/tag-taxonomy";
 import LoginPage from "./pages/login";
 import NotFound from "./pages/not-found";
 
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/approvals" component={ApprovalsPage} />
       <Route path="/manual" component={ManualPage} />
       <Route path="/permissions" component={PermissionsPage} />
+      <Route path="/tag-taxonomy" component={TagTaxonomyPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -80,19 +82,22 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!auth.isAuthenticated) return <LoginPage />;
-
   return (
     <AuthContext.Provider
       value={{
         user: auth.user,
         isAuthenticated: auth.isAuthenticated,
+        login: auth.login,
         logout: auth.logout,
       }}
     >
-      <PermissionsProvider>
-        {children}
-      </PermissionsProvider>
+      {!auth.isAuthenticated ? (
+        <LoginPage />
+      ) : (
+        <PermissionsProvider>
+          {children}
+        </PermissionsProvider>
+      )}
     </AuthContext.Provider>
   );
 }

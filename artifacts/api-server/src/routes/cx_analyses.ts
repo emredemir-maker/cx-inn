@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { cxAnalysesTable, interactionRecordsTable, customersTable, auditLogsTable } from "@workspace/db/schema";
-import { eq, desc, inArray, and } from "drizzle-orm";
+import { cxAnalysesTable, interactionRecordsTable, customersTable, auditLogsTable, segmentsTable } from "@workspace/db/schema";
+import { eq, desc, inArray, and, sql } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 
 const router: IRouter = Router();
@@ -133,6 +133,33 @@ Sadece JSON döndür, başka hiçbir şey yazma.`;
         }
       }
     }
+
+    // Background: refresh segments that match the newly tagged interactions
+    (async () => {
+      try {
+        const allNewTags = Object.values(parsed.interactionTags as Record<string, string[]>).flat();
+        if (allNewTags.length > 0) {
+          const matchingSegments = await db.select({ id: segmentsTable.id, sourceTags: segmentsTable.sourceTags })
+            .from(segmentsTable);
+          for (const seg of matchingSegments) {
+            if (!seg.sourceTags || seg.sourceTags.length === 0) continue;
+            const overlaps = seg.sourceTags.some(t => allNewTags.includes(t));
+            if (overlaps) {
+              // Recompute counts for this segment
+              const countResult = await db.execute<{ count: string }>(sql`
+                SELECT COUNT(DISTINCT customer_id)::text as count
+                FROM ${interactionRecordsTable}
+                WHERE tags && ARRAY[${sql.join(seg.sourceTags.map((t: string) => sql`${t}`), sql`, `)}]::text[]
+              `);
+              const customerCount = parseInt(countResult.rows[0]?.count ?? "0", 10);
+              await db.update(segmentsTable).set({ customerCount }).where(eq(segmentsTable.id, seg.id));
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Background segment refresh error:", e);
+      }
+    })();
 
     const [analysis] = await db.insert(cxAnalysesTable).values({
       customerId: Number(customerId),
@@ -267,6 +294,33 @@ Sadece JSON döndür.`;
             }
           }
         }
+
+        // Background: refresh segments that match the newly tagged interactions
+        (async () => {
+          try {
+            const allNewTags = Object.values(parsed.interactionTags as Record<string, string[]>).flat();
+            if (allNewTags.length > 0) {
+              const matchingSegments = await db.select({ id: segmentsTable.id, sourceTags: segmentsTable.sourceTags })
+                .from(segmentsTable);
+              for (const seg of matchingSegments) {
+                if (!seg.sourceTags || seg.sourceTags.length === 0) continue;
+                const overlaps = seg.sourceTags.some(t => allNewTags.includes(t));
+                if (overlaps) {
+                  // Recompute counts for this segment
+                  const countResult = await db.execute<{ count: string }>(sql`
+                    SELECT COUNT(DISTINCT customer_id)::text as count
+                    FROM ${interactionRecordsTable}
+                    WHERE tags && ARRAY[${sql.join(seg.sourceTags.map((t: string) => sql`${t}`), sql`, `)}]::text[]
+                  `);
+                  const customerCount = parseInt(countResult.rows[0]?.count ?? "0", 10);
+                  await db.update(segmentsTable).set({ customerCount }).where(eq(segmentsTable.id, seg.id));
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Background segment refresh error:", e);
+          }
+        })();
 
         await db.insert(cxAnalysesTable).values({
           customerId,

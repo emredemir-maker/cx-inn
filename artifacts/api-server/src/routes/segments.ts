@@ -16,9 +16,22 @@ router.get("/segments", async (_req, res) => {
   }
 });
 
+// ─── Helper: Jaccard similarity between two tag arrays ────────────────────────
+function computeJaccard(a: string[], b: string[]): number {
+  if (a.length === 0 && b.length === 0) return 1;
+  const setA = new Set(a.map(t => t.toLowerCase()));
+  const setB = new Set(b.map(t => t.toLowerCase()));
+  const intersection = [...setA].filter(t => setB.has(t)).length;
+  const union = new Set([...setA, ...setB]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
 // ─── AI Segment Suggestions ───────────────────────────────────────────────────
 router.post("/segments/ai-suggest", async (_req, res) => {
   try {
+    // 0) Fetch existing segments for duplicate detection
+    const existingSegments = await db.select({ id: segmentsTable.id, name: segmentsTable.name, sourceTags: segmentsTable.sourceTags }).from(segmentsTable);
+
     // 1) Interaction tags
     const tagRows = await db.execute<{ t: string }>(sql`
       SELECT DISTINCT unnest(tags) as t
@@ -115,6 +128,9 @@ ${ticketStats.rows.map(r => `- ${r.band}: ${r.count} müşteri`).join("\n")}
 - Ortalama Tahmin CSAT: ${avgStats.rows[0]?.avg_csat ?? "N/A"}
 - Toplam Analiz Edilen Etkileşim: ${avgStats.rows[0]?.total ?? "0"}
 
+**MEVCUT SEGMENTLER (tekrar önerme, bunları atla):**
+${existingSegments.map(s => `- ${s.name}: [${(s.sourceTags ?? []).join(', ')}]`).join('\n')}
+
 Bu verilere dayanarak, bu B2B platformu için **5 adet anlamlı müşteri segmenti** öner. Segmentler:
 - NPS/CSAT tahmin skorlarını dikkate almalı (örn: düşük NPS'li müşteriler = risk grubu)
 - Churn riski bilgisini kullanmalı
@@ -149,7 +165,11 @@ Yanıtını SADECE geçerli JSON olarak döndür:
     const suggestionsWithCounts = await Promise.all(
       parsed.segments.map(async (s: any) => {
         if (!s.sourceTags || s.sourceTags.length === 0) {
-          return { ...s, estimatedCustomerCount: 0 };
+          const dupMatch = existingSegments.find(es => {
+            const nameSimilar = es.name.toLowerCase().includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(es.name.toLowerCase());
+            return nameSimilar;
+          });
+          return { ...s, estimatedCustomerCount: 0, isDuplicate: !!dupMatch, existingMatchName: dupMatch?.name };
         }
         const countResult = await db.execute<{ count: string }>(sql`
           SELECT COUNT(DISTINCT customer_id)::text as count
@@ -157,7 +177,12 @@ Yanıtını SADECE geçerli JSON olarak döndür:
           WHERE tags && ARRAY[${sql.join(s.sourceTags.map((t: string) => sql`${t}`), sql`, `)}]::text[]
         `);
         const estimatedCustomerCount = parseInt(countResult.rows[0]?.count ?? "0", 10);
-        return { ...s, estimatedCustomerCount };
+        const dupMatch = existingSegments.find(es => {
+          const jaccard = computeJaccard(s.sourceTags ?? [], es.sourceTags ?? []);
+          const nameSimilar = es.name.toLowerCase().includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(es.name.toLowerCase());
+          return jaccard > 0.5 || nameSimilar;
+        });
+        return { ...s, estimatedCustomerCount, isDuplicate: !!dupMatch, existingMatchName: dupMatch?.name };
       })
     );
 
@@ -253,6 +278,81 @@ router.post("/segments/:id/refresh", async (req, res) => {
 
     res.json(updated);
   } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ─── Detect customer segment transitions ──────────────────────────────────────
+router.get("/segments/customer-transitions", async (_req, res) => {
+  try {
+    const segments = await db.select().from(segmentsTable);
+    const activeSegments = segments.filter(s => s.sourceTags && s.sourceTags.length > 0);
+    if (activeSegments.length === 0) return res.json({ transitions: [] });
+
+    // Get customers with tags split into old (>30d) and recent (≤30d) periods
+    const rows = await db.execute<{
+      customer_id: number;
+      customer_name: string;
+      old_tags: string[];
+      recent_tags: string[];
+    }>(sql`
+      SELECT
+        c.id as customer_id,
+        c.name as customer_name,
+        COALESCE((
+          SELECT array_agg(DISTINCT t)
+          FROM ${interactionRecordsTable} ir, unnest(ir.tags) t
+          WHERE ir.customer_id = c.id AND ir.tags IS NOT NULL
+            AND ir.interacted_at < NOW() - INTERVAL '30 days'
+        ), ARRAY[]::text[]) as old_tags,
+        COALESCE((
+          SELECT array_agg(DISTINCT t)
+          FROM ${interactionRecordsTable} ir, unnest(ir.tags) t
+          WHERE ir.customer_id = c.id AND ir.tags IS NOT NULL
+            AND ir.interacted_at >= NOW() - INTERVAL '30 days'
+        ), ARRAY[]::text[]) as recent_tags
+      FROM ${customersTable} c
+      WHERE EXISTS (
+        SELECT 1 FROM ${interactionRecordsTable} ir
+        WHERE ir.customer_id = c.id AND ir.interacted_at >= NOW() - INTERVAL '30 days'
+          AND ir.tags IS NOT NULL AND array_length(ir.tags, 1) > 0
+      )
+      AND EXISTS (
+        SELECT 1 FROM ${interactionRecordsTable} ir
+        WHERE ir.customer_id = c.id AND ir.interacted_at < NOW() - INTERVAL '30 days'
+          AND ir.tags IS NOT NULL AND array_length(ir.tags, 1) > 0
+      )
+    `);
+
+    const findDominant = (tags: string[]) => {
+      if (!tags || tags.length === 0) return null;
+      let best: { id: number; name: string; overlap: number } | null = null;
+      for (const seg of activeSegments) {
+        const overlap = (seg.sourceTags ?? []).filter(t => tags.includes(t)).length;
+        if (overlap > 0 && (!best || overlap > best.overlap)) {
+          best = { id: seg.id, name: seg.name, overlap };
+        }
+      }
+      return best;
+    };
+
+    const transitions = rows.rows
+      .map(row => {
+        const fromSeg = findDominant(row.old_tags);
+        const toSeg = findDominant(row.recent_tags);
+        if (!fromSeg || !toSeg || fromSeg.id === toSeg.id) return null;
+        return {
+          customerId: row.customer_id,
+          customerName: row.customer_name,
+          fromSegment: { id: fromSeg.id, name: fromSeg.name },
+          toSegment: { id: toSeg.id, name: toSeg.name },
+        };
+      })
+      .filter(Boolean);
+
+    res.json({ transitions });
+  } catch (err) {
+    console.error("Segment transitions error:", err);
     res.status(500).json({ error: String(err) });
   }
 });

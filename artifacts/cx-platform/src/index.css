@@ -3,6 +3,9 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+@source "./**/*.tsx";
+@source "./**/*.ts";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { Card, PageHeader, StatusBadge, Button, Input, Label, LoadingScreen } from "@/components/ui-elements";
-import { useSegmentsList, useSegmentMutations, fetchAiSegmentSuggestions } from "@/hooks/use-segments";
+import { useSegmentsList, useSegmentMutations, fetchAiSegmentSuggestions, fetchSegmentTransitions, type SegmentTransition } from "@/hooks/use-segments";
 import {
   PieChart, Users, TrendingUp, Sparkles, Plus, Trash2, RefreshCw,
-  Pencil, X, Check, Wand2, Tag, ChevronRight, Zap,
+  Pencil, X, Check, Wand2, Tag, Zap, ArrowRight, AlertTriangle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -19,25 +19,31 @@ interface AiSuggestion {
   actionRecommendation: string;
   estimatedSize: string;
   estimatedCustomerCount: number;
+  isDuplicate?: boolean;
+  existingMatchName?: string;
 }
 
 // ─── AI Suggestions Modal ─────────────────────────────────────────────────────
 
 function AiSuggestModal({
   onClose,
-  onAccept,
+  onBulkAccept,
 }: {
   onClose: () => void;
-  onAccept: (s: AiSuggestion) => void;
+  onBulkAccept: (suggestions: AiSuggestion[]) => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
-  const [acceptedIdx, setAcceptedIdx] = useState<number[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<Set<number>>(new Set());
+  const [createdIdx, setCreatedIdx] = useState<Set<number>>(new Set());
   const { toast } = useToast();
 
   const handleGenerate = async () => {
     setLoading(true);
     setSuggestions([]);
+    setSelectedIdx(new Set());
+    setCreatedIdx(new Set());
     try {
       const data = await fetchAiSegmentSuggestions();
       setSuggestions(data.suggestions ?? []);
@@ -48,10 +54,44 @@ function AiSuggestModal({
     }
   };
 
-  const handleAccept = (s: AiSuggestion, idx: number) => {
-    onAccept(s);
-    setAcceptedIdx((prev) => [...prev, idx]);
-    toast({ title: `"${s.name}" segmenti oluşturuldu` });
+  const toggleSelect = (idx: number) => {
+    if (createdIdx.has(idx)) return;
+    setSelectedIdx((prev) => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  };
+
+  const pendingSuggestions = suggestions.filter((_, i) => !createdIdx.has(i) && !suggestions[i]?.isDuplicate);
+
+  const toggleSelectAll = () => {
+    const pendingIdx = suggestions
+      .map((s, i) => ({ s, i }))
+      .filter(({ s, i }) => !createdIdx.has(i) && !s.isDuplicate)
+      .map(({ i }) => i);
+    const allSelected = pendingIdx.every((i) => selectedIdx.has(i));
+    if (allSelected) {
+      setSelectedIdx(new Set());
+    } else {
+      setSelectedIdx(new Set(pendingIdx));
+    }
+  };
+
+  const handleBulkCreate = async () => {
+    const toCreate = suggestions.filter((_, i) => selectedIdx.has(i));
+    if (toCreate.length === 0) return;
+    setCreating(true);
+    try {
+      onBulkAccept(toCreate);
+      const newCreated = new Set(createdIdx);
+      selectedIdx.forEach((i) => newCreated.add(i));
+      setCreatedIdx(newCreated);
+      setSelectedIdx(new Set());
+      toast({ title: `${toCreate.length} segment oluşturuldu` });
+    } finally {
+      setCreating(false);
+    }
   };
 
   const sizeColor = (size: string) => {
@@ -59,6 +99,9 @@ function AiSuggestModal({
     if (size === "orta") return "text-yellow-400";
     return "text-slate-400";
   };
+
+  const pendingCount = suggestions.filter((_, i) => !createdIdx.has(i)).length;
+  const allPendingSelected = pendingCount > 0 && suggestions.every((_, i) => createdIdx.has(i) || selectedIdx.has(i));
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -126,31 +169,77 @@ function AiSuggestModal({
 
           {!loading && suggestions.length > 0 && (
             <div className="space-y-3">
+              {/* Toolbar */}
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-foreground">
-                  {suggestions.length} segment önerisi oluşturuldu
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-semibold text-foreground">
+                    {suggestions.length} segment önerisi
+                  </p>
+                  {pendingCount > 0 && (
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                    >
+                      {allPendingSelected ? "Seçimi Kaldır" : "Tümünü Seç"}
+                    </button>
+                  )}
+                </div>
                 <Button variant="ghost" onClick={handleGenerate} className="gap-2 text-xs h-8">
                   <RefreshCw className="h-3.5 w-3.5" /> Yeniden oluştur
                 </Button>
               </div>
 
               {suggestions.map((s, i) => {
-                const accepted = acceptedIdx.includes(i);
+                const created = createdIdx.has(i);
+                const selected = selectedIdx.has(i);
+                const isDuplicate = s.isDuplicate === true;
                 return (
                   <div
                     key={i}
+                    onClick={() => !created && !isDuplicate && toggleSelect(i)}
                     className={cn(
                       "rounded-xl border p-5 transition-all",
-                      accepted
-                        ? "border-success/40 bg-success/5"
-                        : "border-border/40 bg-white/[0.02] hover:border-border/60"
+                      created
+                        ? "border-success/40 bg-success/5 cursor-default opacity-60"
+                        : isDuplicate
+                          ? "border-yellow-500/30 bg-yellow-500/5 cursor-not-allowed"
+                          : selected
+                            ? "border-primary/60 bg-primary/5 cursor-pointer"
+                            : "border-border/40 bg-white/[0.02] hover:border-border/60 cursor-pointer"
                     )}
                   >
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-foreground">{s.name}</h3>
+                    {isDuplicate && (
+                      <div className="flex items-center gap-1.5 mb-2 text-xs text-yellow-400 font-medium">
+                        <AlertTriangle className="h-3 w-3" />
+                        Mevcut segment ile çakışıyor: <span className="font-bold">"{s.existingMatchName}"</span>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-4 mb-3">
+                      {/* Checkbox */}
+                      <div className="flex-shrink-0 mt-0.5">
+                        {created ? (
+                          <div className="w-5 h-5 rounded-md bg-success/20 border border-success/40 flex items-center justify-center">
+                            <Check className="h-3 w-3 text-success" />
+                          </div>
+                        ) : isDuplicate ? (
+                          <div className="w-5 h-5 rounded-md border-2 border-yellow-500/40 bg-yellow-500/10 flex items-center justify-center">
+                            <AlertTriangle className="h-3 w-3 text-yellow-400" />
+                          </div>
+                        ) : (
+                          <div className={cn(
+                            "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
+                            selected
+                              ? "bg-primary border-primary"
+                              : "border-border/60 bg-white/5 hover:border-primary/50"
+                          )}>
+                            {selected && <Check className="h-3 w-3 text-white" />}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h3 className={cn("font-bold", isDuplicate ? "text-foreground/60" : "text-foreground")}>{s.name}</h3>
                           <span className={cn("text-xs font-semibold", sizeColor(s.estimatedSize))}>
                             · {s.estimatedSize}
                           </span>
@@ -162,27 +251,20 @@ function AiSuggestModal({
                         </div>
                         <p className="text-sm text-muted-foreground">{s.description}</p>
                       </div>
-                      {accepted ? (
+
+                      {created && (
                         <div className="flex-shrink-0 flex items-center gap-1.5 text-success text-sm font-semibold">
                           <Check className="h-4 w-4" /> Oluşturuldu
                         </div>
-                      ) : (
-                        <Button
-                          onClick={() => handleAccept(s, i)}
-                          className="flex-shrink-0 gap-2"
-                          variant="outline"
-                        >
-                          <Plus className="h-4 w-4" /> Segmenti Oluştur
-                        </Button>
                       )}
                     </div>
 
                     {/* Source tags */}
                     {s.sourceTags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        {s.sourceTags.map((tag) => (
+                      <div className="flex flex-wrap gap-1.5 mb-3 ml-9">
+                        {s.sourceTags.map((tag, ti) => (
                           <span
-                            key={tag}
+                            key={`${tag}-${ti}`}
                             className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium"
                           >
                             <Tag className="h-2.5 w-2.5" /> {tag}
@@ -192,7 +274,7 @@ function AiSuggestModal({
                     )}
 
                     {/* Action recommendation */}
-                    <div className="flex items-start gap-2 bg-white/[0.03] rounded-lg px-3 py-2">
+                    <div className="flex items-start gap-2 bg-white/[0.03] rounded-lg px-3 py-2 ml-9">
                       <Zap className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />
                       <p className="text-xs text-muted-foreground">{s.actionRecommendation}</p>
                     </div>
@@ -203,8 +285,26 @@ function AiSuggestModal({
           )}
         </div>
 
-        <div className="p-4 border-t border-border/50 flex justify-end">
-          <Button variant="ghost" onClick={onClose}>Kapat</Button>
+        {/* Footer */}
+        <div className="p-4 border-t border-border/50 flex items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            {selectedIdx.size > 0 && (
+              <span className="font-medium text-foreground">{selectedIdx.size} segment seçildi</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" onClick={onClose}>Kapat</Button>
+            {selectedIdx.size > 0 && (
+              <Button
+                onClick={handleBulkCreate}
+                isLoading={creating}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                {selectedIdx.size} Segmenti Oluştur
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -410,6 +510,102 @@ function SegmentCard({
   );
 }
 
+// ─── Segment Transitions Panel ────────────────────────────────────────────────
+
+function SegmentTransitionsPanel({ onApproveAll }: { onApproveAll?: () => void }) {
+  const [transitions, setTransitions] = useState<SegmentTransition[]>([]);
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchSegmentTransitions()
+      .then(d => setTransitions(d.transitions))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const visible = transitions.filter(t => !dismissed.has(t.customerId));
+  if (loading || visible.length === 0) return null;
+
+  const dismiss = (customerId: number) =>
+    setDismissed(prev => new Set([...prev, customerId]));
+
+  const approveAll = () => {
+    visible.forEach(t => dismiss(t.customerId));
+    toast({ title: `${visible.length} segment geçişi onaylandı` });
+    onApproveAll?.();
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-500/5 overflow-hidden">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between p-4 hover:bg-yellow-500/5 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30">
+            <AlertTriangle className="h-4 w-4 text-yellow-400" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-foreground">
+              {visible.length} müşteri farklı segmente geçebilir
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Son 30 gündeki etkileşim verilerine göre tespit edildi
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={e => { e.stopPropagation(); approveAll(); }} className="h-7 text-xs gap-1" variant="outline">
+            <Check className="h-3 w-3" /> Tümünü Onayla
+          </Button>
+          {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-yellow-500/20 divide-y divide-border/30">
+          {visible.map(t => (
+            <div key={t.customerId} className="flex items-center justify-between px-4 py-3 gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary">
+                  {t.customerName[0]?.toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{t.customerName}</p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="text-yellow-400 font-medium truncate max-w-[120px]">{t.fromSegment.name}</span>
+                    <ArrowRight className="h-3 w-3 flex-shrink-0" />
+                    <span className="text-primary font-medium truncate max-w-[120px]">{t.toSegment.name}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  onClick={() => { dismiss(t.customerId); toast({ title: `${t.customerName} geçişi onaylandı` }); }}
+                  className="h-7 text-xs gap-1"
+                  variant="outline"
+                >
+                  <Check className="h-3 w-3" /> Onayla
+                </Button>
+                <button
+                  onClick={() => dismiss(t.customerId)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Yoksay"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Segments() {
@@ -422,13 +618,15 @@ export default function Segments() {
   const [editSegment, setEditSegment] = useState<any | null>(null);
   const [refreshingId, setRefreshingId] = useState<number | null>(null);
 
-  const handleAiAccept = (s: AiSuggestion) => {
-    create.mutate({
-      name: s.name,
-      description: s.description,
-      criteria: s.criteria,
-      sourceTags: s.sourceTags,
-      aiGenerated: true,
+  const handleAiBulkAccept = (suggestions: AiSuggestion[]) => {
+    suggestions.forEach((s) => {
+      create.mutate({
+        name: s.name,
+        description: s.description,
+        criteria: s.criteria,
+        sourceTags: s.sourceTags,
+        aiGenerated: true,
+      });
     });
   };
 
@@ -515,6 +713,9 @@ export default function Segments() {
         </Card>
       </div>
 
+      {/* Segment Transitions */}
+      <SegmentTransitionsPanel />
+
       {/* AI Segments */}
       {aiSegments.length > 0 && (
         <div className="mb-8">
@@ -587,7 +788,7 @@ export default function Segments() {
       {showAi && (
         <AiSuggestModal
           onClose={() => setShowAi(false)}
-          onAccept={handleAiAccept}
+          onBulkAccept={handleAiBulkAccept}
         />
       )}
 

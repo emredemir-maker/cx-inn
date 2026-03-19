@@ -332,8 +332,6 @@ export default function Companies() {
     }
   };
 
-  if (isLoading) return <Layout><LoadingScreen /></Layout>;
-
   const totalCompanies = companies?.length ?? 0;
   const withAnalysis = companies?.filter(c => c.analysisCount > 0).length ?? 0;
   const highChurnCompanies = companies?.filter(c => c.highChurnCount > 0).length ?? 0;
@@ -350,6 +348,8 @@ export default function Companies() {
     });
     return list;
   }, [companies, sortKey, sortDir]);
+
+  if (isLoading) return <Layout><LoadingScreen /></Layout>;
 
   return (
     <Layout>

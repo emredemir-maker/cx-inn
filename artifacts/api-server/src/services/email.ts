@@ -1,26 +1,17 @@
 /**
- * E-posta Servisi
+ * E-posta Servisi — Gmail SMTP (Nodemailer)
  *
- * Şu an: Resend API kullanıyor.
- *
- * Firebase Trigger Email'e geçmek için:
- *   1. Bu dosyadaki `sendEmail` fonksiyonunu güncelleyin.
- *   2. Resend yerine Firestore'a `mail` collection'ına belge yazın:
- *
- *      await adminDb.collection("mail").add({
- *        to: [options.to],
- *        message: {
- *          subject: options.subject,
- *          html: options.html,
- *        },
- *      });
- *
- *   3. Başka hiçbir dosyada değişiklik gerekmez.
+ * Kurulum:
+ *   1. Google Hesabınızda 2 Adımlı Doğrulama açık olmalı
+ *   2. https://myaccount.google.com/apppasswords → "Mail" için uygulama şifresi oluşturun
+ *   3. .env dosyasına ekleyin:
+ *        GMAIL_USER=sizin@gmail.com
+ *        GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
  */
 
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const FROM_ADDRESS = "CX-Inn Platform <noreply@infoset.app>";
+const FROM_ADDRESS = `CX-Inn Platform <${process.env.GMAIL_USER}>`;
 
 export interface EmailOptions {
   to: string;
@@ -33,27 +24,41 @@ export interface EmailResult {
   error?: string;
 }
 
+function createTransporter() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!user || !pass) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass },
+  });
+}
+
 export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("[email] RESEND_API_KEY tanımlı değil — e-posta gönderimi atlandı");
+  const transporter = createTransporter();
+
+  if (!transporter) {
+    console.warn("[email] GMAIL_USER veya GMAIL_APP_PASSWORD tanımlı değil — e-posta gönderimi atlandı");
     return { success: false, error: "E-posta servisi yapılandırılmamış" };
   }
 
-  const resend = new Resend(apiKey);
+  try {
+    await transporter.sendMail({
+      from: FROM_ADDRESS,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+    });
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: [options.to],
-    subject: options.subject,
-    html: options.html,
-  });
-
-  if (error) {
-    console.error("[email] Resend hatası:", error);
-    return { success: false, error: error.message };
+    console.log(`[email] Gönderildi → ${options.to}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[email] Gmail hatası:", message);
+    return { success: false, error: message };
   }
-
-  console.log(`[email] Gönderildi → ${options.to}`);
-  return { success: true };
 }

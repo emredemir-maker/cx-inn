@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BarChart2, Users, MessageSquareQuote, Sparkles, ShieldCheck, Zap, Loader2 } from "lucide-react";
-import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
+import { useAppAuth } from "@/context/auth-context";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -19,7 +19,7 @@ const features = [
 ];
 
 export default function LoginPage() {
-  const { login } = useFirebaseAuth();
+  const { login } = useAppAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

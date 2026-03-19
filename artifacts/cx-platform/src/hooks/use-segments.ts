@@ -62,7 +62,20 @@ export async function fetchAiSegmentSuggestions(): Promise<{
     actionRecommendation: string;
     estimatedSize: string;
     estimatedCustomerCount: number;
+    isDuplicate: boolean;
+    existingMatchName?: string;
   }>;
 }> {
   return apiFetch("/segments/ai-suggest", { method: "POST" });
+}
+
+export interface SegmentTransition {
+  customerId: number;
+  customerName: string;
+  fromSegment: { id: number; name: string };
+  toSegment: { id: number; name: string };
+}
+
+export async function fetchSegmentTransitions(): Promise<{ transitions: SegmentTransition[] }> {
+  return apiFetch("/segments/customer-transitions", { method: "GET" });
 }
