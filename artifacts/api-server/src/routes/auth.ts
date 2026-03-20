@@ -13,7 +13,7 @@ import {
 import { verifyFirebaseToken } from "../lib/firebase-admin";
 import type { UserRole } from "@workspace/db";
 
-const SUPERADMIN_EMAIL = "emre.demir@infoset.app";
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL ?? "";
 
 const router: IRouter = Router();
 
@@ -39,7 +39,7 @@ async function upsertUser(decoded: {
   const firstName = nameParts[0] || null;
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
-  const isSuperadmin = decoded.email === SUPERADMIN_EMAIL;
+  const isSuperadmin = !!SUPERADMIN_EMAIL && decoded.email === SUPERADMIN_EMAIL;
 
   const baseData = {
     id: decoded.uid,

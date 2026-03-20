@@ -3,14 +3,9 @@ import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireRole } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router = Router();
-
-// ── diagnostic ────────────────────────────────────────────────────────────────
-// No-auth ping to verify this router is mounted correctly on Cloud Run
-router.get("/admin/test-data/ping", (_req: Request, res: Response) => {
-  res.json({ ok: true, router: "admin-test-data", ts: Date.now() });
-});
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -143,7 +138,7 @@ router.get(
       });
     } catch (err) {
       console.error("[admin-test-data] counts error:", err);
-      res.status(500).json({ error: "Sayım alınamadı", details: String(err) });
+      res.status(500).json({ error: "Sayım alınamadı", details: sanitizeError(err) });
     }
   }
 );
@@ -353,7 +348,7 @@ router.delete(
       console.error("[admin-test-data] delete error:", err);
       res.status(500).json({
         error: "Silme işlemi başarısız",
-        details: String(err),
+        details: sanitizeError(err),
       });
     }
   }

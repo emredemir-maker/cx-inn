@@ -3,6 +3,8 @@ import { randomBytes, createHash } from "crypto";
 import { db } from "@workspace/db";
 import { apiKeysTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { requireRole } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router = Router();
 
@@ -18,7 +20,7 @@ function generateKey() {
 }
 
 // GET /api/settings/api-keys
-router.get("/settings/api-keys", async (_req, res) => {
+router.get("/settings/api-keys", requireRole("superadmin"), async (_req, res) => {
   try {
     const keys = await db
       .select({
@@ -33,12 +35,12 @@ router.get("/settings/api-keys", async (_req, res) => {
       .orderBy(apiKeysTable.createdAt);
     res.json(keys);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // POST /api/settings/api-keys
-router.post("/settings/api-keys", async (req, res) => {
+router.post("/settings/api-keys", requireRole("superadmin"), async (req, res) => {
   try {
     const { name } = req.body as { name: string };
     if (!name?.trim()) return res.status(400).json({ error: "Ad zorunlu." });
@@ -51,23 +53,23 @@ router.post("/settings/api-keys", async (req, res) => {
     // Return full key ONCE — never stored in plain text
     res.json({ ...created, fullKey: raw });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // DELETE /api/settings/api-keys/:id
-router.delete("/settings/api-keys/:id", async (req, res) => {
+router.delete("/settings/api-keys/:id", requireRole("superadmin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     await db.delete(apiKeysTable).where(eq(apiKeysTable.id, id));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // PATCH /api/settings/api-keys/:id/toggle
-router.patch("/settings/api-keys/:id/toggle", async (req, res) => {
+router.patch("/settings/api-keys/:id/toggle", requireRole("superadmin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [key] = await db.select().from(apiKeysTable).where(eq(apiKeysTable.id, id)).limit(1);
@@ -75,7 +77,7 @@ router.patch("/settings/api-keys/:id/toggle", async (req, res) => {
     const [updated] = await db.update(apiKeysTable).set({ isActive: !key.isActive }).where(eq(apiKeysTable.id, id)).returning();
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 

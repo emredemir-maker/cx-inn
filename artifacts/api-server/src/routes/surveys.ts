@@ -4,11 +4,13 @@ import { surveysTable, auditLogsTable, surveyResponsesTable, surveyCampaignsTabl
 import { eq, sql, desc } from "drizzle-orm";
 import { CreateSurveyBody, UpdateSurveyBody, UpdateSurveyParams, GetSurveyParams, DeleteSurveyParams } from "@workspace/api-zod";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { requireAuth } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router: IRouter = Router();
 
 // ─── AI DESIGN SUGGESTIONS ───────────────────────────────────────────────────
-router.post("/surveys/ai-design-suggest", async (req, res) => {
+router.post("/surveys/ai-design-suggest", requireAuth, async (req, res) => {
   try {
     const { surveyType, companyName, industry, tone } = req.body as {
       surveyType: string;
@@ -58,11 +60,11 @@ Paketler birbirinden belirgin şekilde farklı olsun:
     const parsed = JSON.parse(jsonMatch[0]);
     res.json(parsed);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-router.get("/surveys", async (_req, res) => {
+router.get("/surveys", requireAuth, async (_req, res) => {
   try {
     const surveys = await db.select().from(surveysTable).orderBy(surveysTable.createdAt);
     res.json(surveys.map(s => ({
@@ -71,11 +73,11 @@ router.get("/surveys", async (_req, res) => {
       updatedAt: s.updatedAt.toISOString(),
     })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-router.post("/surveys", async (req, res) => {
+router.post("/surveys", requireAuth, async (req, res) => {
   try {
     const body = CreateSurveyBody.parse(req.body);
     const [survey] = await db.insert(surveysTable).values({
@@ -100,22 +102,22 @@ router.post("/surveys", async (req, res) => {
       updatedAt: survey.updatedAt.toISOString(),
     });
   } catch (err) {
-    res.status(400).json({ error: String(err) });
+    res.status(400).json({ error: sanitizeError(err) });
   }
 });
 
-router.get("/surveys/:id", async (req, res) => {
+router.get("/surveys/:id", requireAuth, async (req, res) => {
   try {
     const { id } = GetSurveyParams.parse({ id: Number(req.params.id) });
     const [survey] = await db.select().from(surveysTable).where(eq(surveysTable.id, id));
     if (!survey) return res.status(404).json({ error: "Bulunamadı" });
     res.json({ ...survey, createdAt: survey.createdAt.toISOString(), updatedAt: survey.updatedAt.toISOString() });
   } catch (err) {
-    res.status(400).json({ error: String(err) });
+    res.status(400).json({ error: sanitizeError(err) });
   }
 });
 
-router.patch("/surveys/:id", async (req, res) => {
+router.patch("/surveys/:id", requireAuth, async (req, res) => {
   try {
     const { id } = UpdateSurveyParams.parse({ id: Number(req.params.id) });
     const body = UpdateSurveyBody.parse(req.body);
@@ -136,11 +138,11 @@ router.patch("/surveys/:id", async (req, res) => {
 
     res.json({ ...survey, createdAt: survey.createdAt.toISOString(), updatedAt: survey.updatedAt.toISOString() });
   } catch (err) {
-    res.status(400).json({ error: String(err) });
+    res.status(400).json({ error: sanitizeError(err) });
   }
 });
 
-router.delete("/surveys/:id", async (req, res) => {
+router.delete("/surveys/:id", requireAuth, async (req, res) => {
   try {
     const { id } = DeleteSurveyParams.parse({ id: Number(req.params.id) });
     await db.delete(surveysTable).where(eq(surveysTable.id, id));
@@ -156,7 +158,7 @@ router.delete("/surveys/:id", async (req, res) => {
 
     res.status(204).send();
   } catch (err) {
-    res.status(400).json({ error: String(err) });
+    res.status(400).json({ error: sanitizeError(err) });
   }
 });
 
@@ -221,12 +223,12 @@ router.post("/survey-responses", async (req, res) => {
 
     res.status(201).json(response);
   } catch (err) {
-    res.status(400).json({ error: String(err) });
+    res.status(400).json({ error: sanitizeError(err) });
   }
 });
 
 // Get responses for a survey (with summary)
-router.get("/survey-responses", async (req, res) => {
+router.get("/survey-responses", requireAuth, async (req, res) => {
   try {
     const surveyId = req.query.surveyId ? parseInt(req.query.surveyId as string) : undefined;
     const campaignId = req.query.campaignId ? parseInt(req.query.campaignId as string) : undefined;
@@ -258,12 +260,12 @@ router.get("/survey-responses", async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // Get response summary grouped by survey (for surveys list page)
-router.get("/survey-responses/summary", async (_req, res) => {
+router.get("/survey-responses/summary", requireAuth, async (_req, res) => {
   try {
     const rows = await db.execute<{
       survey_id: number;
@@ -297,7 +299,7 @@ router.get("/survey-responses/summary", async (_req, res) => {
 
     res.json(summary);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 

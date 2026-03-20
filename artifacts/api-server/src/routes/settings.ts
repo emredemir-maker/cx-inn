@@ -2,11 +2,13 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { companySettingsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { requireAuth } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router = Router();
 
 // GET /api/settings/company
-router.get("/settings/company", async (_req, res) => {
+router.get("/settings/company", requireAuth, async (_req, res) => {
   try {
     const [settings] = await db.select().from(companySettingsTable).limit(1);
     if (!settings) {
@@ -15,12 +17,12 @@ router.get("/settings/company", async (_req, res) => {
     }
     res.json(settings);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // PUT /api/settings/company
-router.put("/settings/company", async (req, res) => {
+router.put("/settings/company", requireAuth, async (req, res) => {
   try {
     const { companyName, logoUrl, primaryColor, email, website, industry, description } = req.body as {
       companyName?: string;
@@ -64,7 +66,7 @@ router.put("/settings/company", async (req, res) => {
 
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 

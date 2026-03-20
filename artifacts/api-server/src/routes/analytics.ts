@@ -2,11 +2,13 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sql, desc, eq } from "drizzle-orm";
 import { predictionAccuracyTable, customersTable } from "@workspace/db/schema";
+import { requireAuth } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router: IRouter = Router();
 
 // ─── NPS/CSAT Impact by Tag ───────────────────────────────────────────────────
-router.get("/analytics/nps-impact", async (_req, res) => {
+router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
   try {
     // Tag → NPS/CSAT impact
     const tagImpact = await db.execute<{
@@ -219,12 +221,12 @@ router.get("/analytics/nps-impact", async (_req, res) => {
     });
   } catch (err) {
     console.error("Analytics error:", err);
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Monthly Trend & Insights ─────────────────────────────────────────────────
-router.get("/analytics/monthly-trend", async (_req, res) => {
+router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
   try {
     const [monthlyStats, monthlyPainRows, monthlyChurnRows] = await Promise.all([
       // Monthly NPS/CSAT/volume from interaction records (interacted_at = actual date)
@@ -333,12 +335,12 @@ router.get("/analytics/monthly-trend", async (_req, res) => {
     res.json({ months });
   } catch (err) {
     console.error("Monthly trend error:", err);
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Prediction Accuracy ─────────────────────────────────────────────────────
-router.get("/analytics/prediction-accuracy", async (_req, res) => {
+router.get("/analytics/prediction-accuracy", requireAuth, async (_req, res) => {
   try {
     // Overall stats
     const statsResult = await db.execute<{
@@ -416,7 +418,7 @@ router.get("/analytics/prediction-accuracy", async (_req, res) => {
     });
   } catch (err) {
     console.error("Prediction accuracy error:", err);
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 

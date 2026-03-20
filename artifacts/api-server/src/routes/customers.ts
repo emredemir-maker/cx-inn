@@ -3,10 +3,12 @@ import { db } from "@workspace/db";
 import { customersTable, interactionsTable } from "@workspace/db";
 import { eq, sql, isNotNull, and } from "drizzle-orm";
 import { GetCustomerParams } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router: IRouter = Router();
 
-router.get("/customers", async (_req, res) => {
+router.get("/customers", requireAuth, async (_req, res) => {
   try {
     const customers = await db.select().from(customersTable)
       .where(eq(customersTable.isExcluded, false))
@@ -17,12 +19,12 @@ router.get("/customers", async (_req, res) => {
       createdAt: c.createdAt.toISOString(),
     })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── CUSTOMER GROUPS (for campaign target picker) ────────────────────────────
-router.get("/customers/groups", async (_req, res) => {
+router.get("/customers/groups", requireAuth, async (_req, res) => {
   try {
     const statsResult = await db.execute<{
       total: string; high_churn: string; mid_churn: string; low_churn: string;
@@ -72,11 +74,11 @@ router.get("/customers/groups", async (_req, res) => {
       companies: companyResult.rows.map(r => ({ name: r.company, count: Number(r.count) })),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-router.get("/customers/:id", async (req, res) => {
+router.get("/customers/:id", requireAuth, async (req, res) => {
   try {
     const { id } = GetCustomerParams.parse({ id: Number(req.params.id) });
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
@@ -96,7 +98,7 @@ router.get("/customers/:id", async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(400).json({ error: String(err) });
+    res.status(400).json({ error: sanitizeError(err) });
   }
 });
 

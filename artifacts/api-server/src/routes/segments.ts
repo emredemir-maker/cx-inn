@@ -3,16 +3,18 @@ import { db } from "@workspace/db";
 import { segmentsTable, customersTable, interactionRecordsTable, cxAnalysesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { requireAuth } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router: IRouter = Router();
 
 // ─── List segments ────────────────────────────────────────────────────────────
-router.get("/segments", async (_req, res) => {
+router.get("/segments", requireAuth, async (_req, res) => {
   try {
     const segments = await db.select().from(segmentsTable).orderBy(segmentsTable.createdAt);
     res.json(segments.map(s => ({ ...s, createdAt: s.createdAt.toISOString() })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
@@ -27,7 +29,7 @@ function computeJaccard(a: string[], b: string[]): number {
 }
 
 // ─── AI Segment Suggestions ───────────────────────────────────────────────────
-router.post("/segments/ai-suggest", async (_req, res) => {
+router.post("/segments/ai-suggest", requireAuth, async (_req, res) => {
   try {
     // 0) Fetch existing segments for duplicate detection
     const existingSegments = await db.select({ id: segmentsTable.id, name: segmentsTable.name, sourceTags: segmentsTable.sourceTags }).from(segmentsTable);
@@ -189,12 +191,12 @@ Yanıtını SADECE geçerli JSON olarak döndür:
     res.json({ suggestions: suggestionsWithCounts });
   } catch (err) {
     console.error("AI segment suggest error:", err);
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Create segment ───────────────────────────────────────────────────────────
-router.post("/segments", async (req, res) => {
+router.post("/segments", requireAuth, async (req, res) => {
   try {
     const { name, description, criteria, sourceTags, aiGenerated } = req.body as {
       name: string;
@@ -218,12 +220,12 @@ router.post("/segments", async (req, res) => {
 
     res.json(segment);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Update segment ───────────────────────────────────────────────────────────
-router.put("/segments/:id", async (req, res) => {
+router.put("/segments/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { name, description, criteria, sourceTags } = req.body as {
@@ -247,23 +249,23 @@ router.put("/segments/:id", async (req, res) => {
     const [updated] = await db.update(segmentsTable).set(updates).where(eq(segmentsTable.id, id)).returning();
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Delete segment ───────────────────────────────────────────────────────────
-router.delete("/segments/:id", async (req, res) => {
+router.delete("/segments/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(segmentsTable).where(eq(segmentsTable.id, id));
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Refresh segment counts ───────────────────────────────────────────────────
-router.post("/segments/:id/refresh", async (req, res) => {
+router.post("/segments/:id/refresh", requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [segment] = await db.select().from(segmentsTable).where(eq(segmentsTable.id, id));
@@ -278,12 +280,12 @@ router.post("/segments/:id/refresh", async (req, res) => {
 
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
 // ─── Detect customer segment transitions ──────────────────────────────────────
-router.get("/segments/customer-transitions", async (_req, res) => {
+router.get("/segments/customer-transitions", requireAuth, async (_req, res) => {
   try {
     const segments = await db.select().from(segmentsTable);
     const activeSegments = segments.filter(s => s.sourceTags && s.sourceTags.length > 0);
@@ -353,7 +355,7 @@ router.get("/segments/customer-transitions", async (_req, res) => {
     res.json({ transitions });
   } catch (err) {
     console.error("Segment transitions error:", err);
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 

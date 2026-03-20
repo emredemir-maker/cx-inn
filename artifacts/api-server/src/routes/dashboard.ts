@@ -2,10 +2,12 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { customersTable, interactionRecordsTable, cxAnalysesTable, surveyCampaignsTable, surveyResponsesTable } from "@workspace/db";
 import { eq, and, count, avg, desc, isNotNull, gte, sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/requireRole";
+import { sanitizeError } from "../lib/sanitize-error";
 
 const router: IRouter = Router();
 
-router.get("/dashboard/metrics", async (_req, res) => {
+router.get("/dashboard/metrics", requireAuth, async (_req, res) => {
   try {
     const [totalCustomers] = await db.select({ count: count() }).from(customersTable).where(eq(customersTable.isExcluded, false));
     const [highChurn] = await db.select({ count: count() }).from(customersTable).where(and(eq(customersTable.churnRisk, "high"), eq(customersTable.isExcluded, false)));
@@ -53,11 +55,11 @@ router.get("/dashboard/metrics", async (_req, res) => {
       pendingApprovals: 0,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-router.get("/dashboard/trend", async (_req, res) => {
+router.get("/dashboard/trend", requireAuth, async (_req, res) => {
   try {
     // Build weekly trend from real cx_analyses data
     const rows = await db
@@ -79,11 +81,11 @@ router.get("/dashboard/trend", async (_req, res) => {
 
     res.json(trend);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-router.get("/dashboard/recent-analyses", async (_req, res) => {
+router.get("/dashboard/recent-analyses", requireAuth, async (_req, res) => {
   try {
     const analyses = await db
       .select({
@@ -105,11 +107,11 @@ router.get("/dashboard/recent-analyses", async (_req, res) => {
 
     res.json(analyses.map(a => ({ ...a, createdAt: a.createdAt?.toISOString() })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-router.get("/dashboard/request-insights", async (_req, res) => {
+router.get("/dashboard/request-insights", requireAuth, async (_req, res) => {
   try {
     const [painPointRows, topicRows, statusRows, typeRows] = await Promise.all([
       // Top pain points (unnest text[] array, count occurrences)
@@ -155,7 +157,7 @@ router.get("/dashboard/request-insights", async (_req, res) => {
       typeBreakdown: typeRows.rows.map(r => ({ type: r.type, count: Number(r.cnt) })),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
