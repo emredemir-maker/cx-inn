@@ -1,3 +1,4 @@
+// v2 — rebuilt 2026-03-20 with parameterized raw-SQL queries
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
