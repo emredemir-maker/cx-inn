@@ -77,7 +77,7 @@ jobs:
             --max-instances=10 \
             --timeout=60s \
             --concurrency=80 \
-            --set-env-vars="NODE_ENV=production,PORT=8080,ALLOWED_ORIGIN=https://${FIREBASE_PROJECT_ID}.web.app" \
+            --set-env-vars="NODE_ENV=production,ALLOWED_ORIGIN=https://${FIREBASE_PROJECT_ID}.web.app" \
             --set-secrets="DATABASE_URL=CX_INN_DATABASE_URL:latest,GEMINI_API_KEY=CX_INN_GEMINI_API_KEY:latest,FIREBASE_PROJECT_ID=CX_INN_FIREBASE_PROJECT_ID:latest,FIREBASE_SERVICE_ACCOUNT=CX_INN_FIREBASE_SERVICE_ACCOUNT:latest,GMAIL_USER=CX_INN_GMAIL_USER:latest,GMAIL_APP_PASSWORD=CX_INN_GMAIL_APP_PASSWORD:latest" \
             --project="$GCP_PROJECT_ID"
 
