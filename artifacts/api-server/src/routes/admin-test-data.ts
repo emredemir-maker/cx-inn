@@ -1,10 +1,16 @@
-// v2 — rebuilt 2026-03-20 with parameterized raw-SQL queries
+// v3 — diagnostic ping added 2026-03-20
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireRole } from "../middleware/requireRole";
 
 const router = Router();
+
+// ── diagnostic ────────────────────────────────────────────────────────────────
+// No-auth ping to verify this router is mounted correctly on Cloud Run
+router.get("/admin/test-data/ping", (_req: Request, res: Response) => {
+  res.json({ ok: true, router: "admin-test-data", ts: Date.now() });
+});
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
