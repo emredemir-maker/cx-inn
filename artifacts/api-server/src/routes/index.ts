@@ -28,6 +28,7 @@ import approvalsRouter from "./approvals";
 import invitationsRouter from "./invitations";
 import permissionsRouter from "./permissions";
 import tagTaxonomyRouter from "./tag-taxonomy";
+import adminTestDataRouter from "./admin-test-data";
 import v1Router from "./v1/index";
 
 const router: IRouter = Router();
@@ -61,6 +62,7 @@ router.use(approvalsRouter);
 router.use(invitationsRouter);
 router.use(permissionsRouter);
 router.use(tagTaxonomyRouter);
+router.use(adminTestDataRouter);
 router.use(v1Router);
 
 export default router;

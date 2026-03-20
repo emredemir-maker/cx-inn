@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAppAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
 import {
   Settings, Building2, Mail, Globe, Briefcase, FileText,
   Save, CheckCircle, Image, Palette, Eye, EyeOff, Upload, X, Link2,
   Key, Plus, Trash2, Power, Copy, Check, AlertCircle, Clock, Webhook, Code2,
 } from "lucide-react";
+import { TestDataCleanup } from "@/components/test-data-cleanup";
 
 type CompanySettings = {
   id: number;
@@ -55,6 +57,7 @@ function Field({ label, icon, children, hint }: {
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { realRole } = useAppAuth();
 
   const { data: settings, isLoading } = useQuery<CompanySettings>({
     queryKey: ["company-settings"],
@@ -615,6 +618,11 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
+
+        {/* ── Developer / Test Data Cleanup (superadmin only) ── */}
+        {realRole === "superadmin" && (
+          <TestDataCleanup />
+        )}
 
         <div className="pb-8" />
       </div>
