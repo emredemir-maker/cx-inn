@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  onAuthStateChanged,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -61,21 +62,46 @@ export function useFirebaseAuth(): AuthState {
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
-      // Check if there's an existing session on the backend
-      const sessionUser = await fetchCurrentUser();
-      if (sessionUser) {
-        if (!cancelled) {
-          setUser(sessionUser);
-          setIsLoading(false);
-        }
+    // Listen to Firebase Auth state changes.
+    // When Firebase has a valid user but the backend session has expired
+    // (e.g. after a long idle period), silently refresh the backend session
+    // using the current Firebase ID token.
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (cancelled) return;
+
+      if (!firebaseUser) {
+        // Firebase user is gone — ensure backend is also cleared
+        setUser(null);
+        setIsLoading(false);
         return;
       }
-      if (!cancelled) setIsLoading(false);
-    }
 
-    init();
-    return () => { cancelled = true; };
+      // Firebase user is active — check if backend session is still alive
+      const sessionUser = await fetchCurrentUser();
+      if (!cancelled && sessionUser) {
+        setUser(sessionUser);
+        setIsLoading(false);
+        return;
+      }
+
+      // Backend session expired but Firebase token is valid → silently re-login
+      try {
+        const idToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
+        const refreshedUser = await exchangeToken(idToken);
+        if (!cancelled) {
+          setUser(refreshedUser);
+        }
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async () => {
