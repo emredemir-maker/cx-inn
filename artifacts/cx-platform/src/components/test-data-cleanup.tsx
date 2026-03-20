@@ -124,15 +124,19 @@ export function TestDataCleanup() {
   if (emailPattern.trim()) countsParams.set("emailPattern", emailPattern.trim());
   if (dateRange !== "all") countsParams.set("dateRange", dateRange);
 
-  const { data: counts, isLoading: countsLoading } = useQuery<Counts>({
+  const { data: counts, isLoading: countsLoading, error: countsError } = useQuery<Counts>({
     queryKey: ["test-data-counts", emailPattern, dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/admin/test-data/counts?${countsParams}`);
-      if (!res.ok) throw new Error("Sayım alınamadı");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.details ?? body.error ?? `HTTP ${res.status}`);
+      }
       return res.json();
     },
     refetchInterval: 30_000,
     enabled: expanded,
+    retry: 1,
   });
 
   // ── Delete mutation ──────────────────────────────────────────────────────
@@ -233,6 +237,14 @@ export function TestDataCleanup() {
                 Silinen veriler <strong>geri alınamaz</strong>. Yalnızca test ve geliştirme ortamında kullanın.
               </p>
             </div>
+
+            {/* Count fetch error */}
+            {countsError && (
+              <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 p-3">
+                <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-red-300/90">Sayım alınamadı: {(countsError as Error).message}</p>
+              </div>
+            )}
 
             {/* Filters */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

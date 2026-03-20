@@ -1,22 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
-import {
-  cxAnalysesTable,
-  predictionAccuracyTable,
-  surveyResponsesTable,
-  aiApprovalsTable,
-  interactionsTable,
-  interactionRecordsTable,
-  messages as messagesTable,
-  conversations as conversationsTable,
-  surveyTestSendsTable,
-  surveyCampaignsTable,
-  surveysTable,
-  segmentsTable,
-  customersTable,
-  auditLogsTable,
-} from "@workspace/db/schema";
-import { sql, count, and, like, gte, inArray } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { requireRole } from "../middleware/requireRole";
 
 const router = Router();
@@ -24,13 +8,12 @@ const router = Router();
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function sanitizeEmailPattern(raw: string): string {
-  // Strip @ prefix if user included it, then remove SQL wildcard chars
-  const cleaned = raw.replace(/^@/, "").replace(/[%_]/g, "");
-  return cleaned;
+  // Remove @ prefix if included, strip SQL wildcard chars to prevent injection
+  return raw.replace(/^@/, "").replace(/[%_]/g, "").trim();
 }
 
 function dateRangeStart(range: string | undefined): Date | undefined {
-  if (!range) return undefined;
+  if (!range || range === "all") return undefined;
   const now = new Date();
   if (range === "today") {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -40,17 +23,23 @@ function dateRangeStart(range: string | undefined): Date | undefined {
     d.setDate(d.getDate() - 7);
     return d;
   }
-  return undefined; // "all"
+  return undefined;
 }
 
-async function countCustomerIds(emailPattern?: string): Promise<number[]> {
-  if (!emailPattern) return [];
-  const pattern = `%@${sanitizeEmailPattern(emailPattern)}`;
-  const rows = await db
-    .select({ id: customersTable.id })
-    .from(customersTable)
-    .where(like(customersTable.email, pattern));
-  return rows.map((r) => r.id);
+/** Extract numeric count from a db.execute result */
+function rowCount(result: any): number {
+  // Drizzle wraps pg results — rows array or rowCount
+  const rows = result?.rows ?? result;
+  if (Array.isArray(rows) && rows.length > 0) {
+    const val = rows[0]?.count ?? rows[0]?.c;
+    return Number(val ?? 0);
+  }
+  return Number(result?.rowCount ?? 0);
+}
+
+/** Extract affected row count from a DELETE result */
+function affectedRows(result: any): number {
+  return Number(result?.rowCount ?? result?.rows?.length ?? 0);
 }
 
 // ── GET /api/admin/test-data/counts ──────────────────────────────────────────
@@ -66,64 +55,87 @@ router.get(
       };
 
       const since = dateRangeStart(dateRange);
-      const customerIds = emailPattern ? await countCustomerIds(emailPattern) : undefined;
+      const ep = emailPattern ? sanitizeEmailPattern(emailPattern) : null;
+      const emailLike = ep ? `%@${ep}` : null;
 
-      const buildWhere = (createdAtCol: any, customerIdCol?: any) => {
-        const conditions = [];
-        if (since) conditions.push(gte(createdAtCol, since));
-        if (customerIds !== undefined) {
-          if (customerIds.length === 0) {
-            // no matching customers → force zero count
-            conditions.push(sql`false`);
-          } else if (customerIdCol) {
-            conditions.push(inArray(customerIdCol, customerIds));
-          }
-        }
-        return conditions.length > 0 ? and(...conditions) : undefined;
+      // Build counts using parameterized sql template
+      const cnt = async (query: ReturnType<typeof sql>) => {
+        const r = await db.execute(query);
+        return rowCount(r);
       };
 
       const [
-        customersCount,
-        interactionsCount,
-        interactionRecordsCount,
-        surveyResponsesCount,
-        surveyTestSendsCount,
-        cxAnalysesCount,
-        predictionAccuracyCount,
-        aiApprovalsCount,
-        conversationsCount,
-        messagesCount,
-        surveysCount,
-        surveyCampaignsCount,
-        segmentsCount,
-        auditLogsCount,
+        customers,
+        interactions,
+        interactionRecords,
+        surveyResponses,
+        cxAnalyses,
+        predictionAccuracy,
+        aiApprovals,
+        conversations,
+        messages,
+        surveys,
+        surveyCampaigns,
+        segments,
+        auditLogs,
       ] = await Promise.all([
-        db.select({ c: count() }).from(customersTable).where(buildWhere(customersTable.createdAt)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(interactionsTable).where(buildWhere(interactionsTable.createdAt, interactionsTable.customerId)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(interactionRecordsTable).where(buildWhere(interactionRecordsTable.createdAt, interactionRecordsTable.customerId)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(surveyResponsesTable).where(buildWhere(surveyResponsesTable.createdAt, surveyResponsesTable.customerId)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(surveyTestSendsTable).where(buildWhere(surveyTestSendsTable.sentAt)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(cxAnalysesTable).where(buildWhere(cxAnalysesTable.createdAt, cxAnalysesTable.customerId)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(predictionAccuracyTable).where(buildWhere(predictionAccuracyTable.recordedAt, predictionAccuracyTable.customerId)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(aiApprovalsTable).where(buildWhere(aiApprovalsTable.createdAt)).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(conversationsTable).where(since ? gte(conversationsTable.createdAt, since) : undefined).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(messagesTable).where(since ? gte(messagesTable.createdAt, since) : undefined).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(surveysTable).where(since ? gte(surveysTable.createdAt, since) : undefined).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(surveyCampaignsTable).where(since ? gte(surveyCampaignsTable.createdAt, since) : undefined).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(segmentsTable).where(since ? gte(segmentsTable.createdAt, since) : undefined).then((r) => r[0]?.c ?? 0),
-        db.select({ c: count() }).from(auditLogsTable).where(since ? gte(auditLogsTable.createdAt, since) : undefined).then((r) => r[0]?.c ?? 0),
+        cnt(sql`SELECT COUNT(*) AS count FROM customers
+          WHERE (${emailLike}::text IS NULL OR email LIKE ${emailLike})
+          AND (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM interactions
+          WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+          AND (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM interaction_records
+          WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+          AND (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM survey_responses
+          WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+          AND (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM cx_analyses
+          WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+          AND (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM prediction_accuracy
+          WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+          AND (${since}::timestamptz IS NULL OR recorded_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM ai_approvals
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM conversations
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM messages
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM surveys
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM survey_campaigns
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM segments
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
+
+        cnt(sql`SELECT COUNT(*) AS count FROM audit_logs
+          WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`),
       ]);
 
       res.json({
-        customers: Number(customersCount),
-        interactions: Number(interactionsCount) + Number(interactionRecordsCount),
-        surveyData: Number(surveyResponsesCount) + Number(surveyTestSendsCount),
-        aiData: Number(cxAnalysesCount) + Number(predictionAccuracyCount) + Number(aiApprovalsCount),
-        conversations: Number(conversationsCount) + Number(messagesCount),
-        surveys: Number(surveysCount) + Number(surveyCampaignsCount) + Number(segmentsCount),
-        auditLogs: Number(auditLogsCount),
+        customers,
+        interactions: interactions + interactionRecords,
+        surveyData: surveyResponses,
+        aiData: cxAnalyses + predictionAccuracy + aiApprovals,
+        conversations: conversations + messages,
+        surveys: surveys + surveyCampaigns + segments,
+        auditLogs,
       });
     } catch (err) {
+      console.error("[admin-test-data] counts error:", err);
       res.status(500).json({ error: "Sayım alınamadı", details: String(err) });
     }
   }
@@ -131,7 +143,9 @@ router.get(
 
 // ── DELETE /api/admin/test-data ───────────────────────────────────────────────
 
-const VALID_SCOPES = ["all", "customers", "interactions", "surveys", "ai_data", "conversations", "audit_logs"] as const;
+const VALID_SCOPES = [
+  "all", "customers", "interactions", "surveys", "ai_data", "conversations", "audit_logs",
+] as const;
 type Scope = (typeof VALID_SCOPES)[number];
 
 router.delete(
@@ -143,128 +157,197 @@ router.delete(
       filters?: { emailPattern?: string; dateRange?: string };
     };
 
-    // Validate
     if (!Array.isArray(scopes) || scopes.length === 0) {
       return res.status(400).json({ error: "'scopes' dizisi zorunlu" });
     }
-    const invalidScope = scopes.find((s) => !VALID_SCOPES.includes(s));
-    if (invalidScope) {
-      return res.status(400).json({ error: `Geçersiz scope: ${invalidScope}` });
+    const invalid = scopes.find((s) => !VALID_SCOPES.includes(s));
+    if (invalid) {
+      return res.status(400).json({ error: `Geçersiz scope: ${invalid}` });
     }
 
     const doAll = scopes.includes("all");
     const since = dateRangeStart(filters?.dateRange);
-
-    // Resolve customer id filter
-    let customerIds: number[] | undefined;
-    if (filters?.emailPattern) {
-      customerIds = await countCustomerIds(filters.emailPattern);
-      if (customerIds.length === 0) {
-        return res.json({ success: true, deleted: {}, totalDeleted: 0, message: "Eşleşen müşteri bulunamadı — hiçbir şey silinmedi." });
-      }
-    }
-
-    const buildWhere = (createdAtCol: any, customerIdCol?: any) => {
-      const conditions = [];
-      if (since) conditions.push(gte(createdAtCol, since));
-      if (customerIds !== undefined && customerIdCol) {
-        conditions.push(inArray(customerIdCol, customerIds));
-      }
-      return conditions.length > 0 ? and(...conditions) : undefined;
-    };
-
-    const buildWhereNoCustomer = (createdAtCol: any) => {
-      if (since) return gte(createdAtCol, since);
-      return undefined;
-    };
+    const ep = filters?.emailPattern ? sanitizeEmailPattern(filters.emailPattern) : null;
+    const emailLike = ep ? `%@${ep}` : null;
 
     const deleted: Record<string, number> = {};
 
-    try {
-      await db.transaction(async (tx) => {
+    const del = async (query: ReturnType<typeof sql>, label: string) => {
+      const r = await db.execute(query);
+      deleted[label] = (deleted[label] ?? 0) + affectedRows(r);
+    };
 
-        const del = async (table: any, where: any, label: string) => {
-          const result = await tx.delete(table).where(where).returning({ id: table.id });
-          deleted[label] = (deleted[label] ?? 0) + result.length;
+    try {
+      const run = doAll || scopes.includes("customers");
+      const runInteractions = doAll || scopes.includes("interactions");
+      const runSurveys = doAll || scopes.includes("surveys");
+      const runAi = doAll || scopes.includes("ai_data");
+      const runConversations = doAll || scopes.includes("conversations");
+      const runAuditLogs = doAll || scopes.includes("audit_logs");
+
+      // Use a single transaction via Drizzle
+      await db.transaction(async (tx) => {
+        const txDel = async (query: ReturnType<typeof sql>, label: string) => {
+          const r = await tx.execute(query);
+          deleted[label] = (deleted[label] ?? 0) + affectedRows(r);
         };
 
-        // ── customers scope (includes all customer-linked data) ──────────────
-        if (doAll || scopes.includes("customers")) {
-          await del(cxAnalysesTable,          buildWhere(cxAnalysesTable.createdAt, cxAnalysesTable.customerId),              "cx_analyses");
-          await del(predictionAccuracyTable,  buildWhere(predictionAccuracyTable.recordedAt, predictionAccuracyTable.customerId), "prediction_accuracy");
-          await del(surveyResponsesTable,     buildWhere(surveyResponsesTable.createdAt, surveyResponsesTable.customerId),    "survey_responses");
-          await del(aiApprovalsTable,         buildWhere(aiApprovalsTable.createdAt),                                          "ai_approvals");
-          await del(interactionsTable,        buildWhere(interactionsTable.createdAt, interactionsTable.customerId),           "interactions");
-          await del(interactionRecordsTable,  buildWhere(interactionRecordsTable.createdAt, interactionRecordsTable.customerId), "interaction_records");
-          await del(customersTable,           buildWhere(customersTable.createdAt),                                            "customers");
+        // ── 1. prediction_accuracy FIRST (FK → cx_analyses, survey_responses)
+        if (run || runAi || runSurveys) {
+          await txDel(
+            sql`DELETE FROM prediction_accuracy
+                WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+                AND (${since}::timestamptz IS NULL OR recorded_at >= ${since})`,
+            "prediction_accuracy"
+          );
         }
 
-        // ── interactions scope only (no customer delete) ─────────────────────
-        if (!doAll && !scopes.includes("customers") && scopes.includes("interactions")) {
-          await del(interactionsTable,       buildWhere(interactionsTable.createdAt, interactionsTable.customerId),           "interactions");
-          await del(interactionRecordsTable, buildWhere(interactionRecordsTable.createdAt, interactionRecordsTable.customerId), "interaction_records");
+        // ── 2. cx_analyses (FK → customers)
+        if (run || runAi) {
+          await txDel(
+            sql`DELETE FROM cx_analyses
+                WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+                AND (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "cx_analyses"
+          );
         }
 
-        // ── ai_data scope ─────────────────────────────────────────────────────
-        if (doAll || scopes.includes("ai_data")) {
-          if (!deleted["cx_analyses"]) {
-            await del(cxAnalysesTable,         buildWhere(cxAnalysesTable.createdAt, cxAnalysesTable.customerId),             "cx_analyses");
-          }
-          if (!deleted["prediction_accuracy"]) {
-            await del(predictionAccuracyTable, buildWhere(predictionAccuracyTable.recordedAt, predictionAccuracyTable.customerId), "prediction_accuracy");
-          }
-          if (!deleted["ai_approvals"]) {
-            await del(aiApprovalsTable,        buildWhere(aiApprovalsTable.createdAt),                                         "ai_approvals");
-          }
+        // ── 3. ai_approvals
+        if (run || runAi) {
+          await txDel(
+            sql`DELETE FROM ai_approvals
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "ai_approvals"
+          );
         }
 
-        // ── surveys scope ─────────────────────────────────────────────────────
-        if (doAll || scopes.includes("surveys")) {
-          if (!deleted["survey_responses"]) {
-            await del(surveyResponsesTable, buildWhereNoCustomer(surveyResponsesTable.createdAt),  "survey_responses");
-          }
-          await del(surveyTestSendsTable,   buildWhereNoCustomer(surveyTestSendsTable.sentAt),     "survey_test_sends");
-          await del(surveyCampaignsTable,   buildWhereNoCustomer(surveyCampaignsTable.createdAt),  "survey_campaigns");
-          await del(surveysTable,           buildWhereNoCustomer(surveysTable.createdAt),           "surveys");
-          await del(segmentsTable,          buildWhereNoCustomer(segmentsTable.createdAt),          "segments");
+        // ── 4. survey_responses (FK → surveys, campaigns, customers)
+        if (run || runSurveys) {
+          await txDel(
+            sql`DELETE FROM survey_responses
+                WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+                AND (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "survey_responses"
+          );
         }
 
-        // ── conversations scope ───────────────────────────────────────────────
-        if (doAll || scopes.includes("conversations")) {
-          await del(messagesTable,      buildWhereNoCustomer(messagesTable.createdAt),      "messages");
-          await del(conversationsTable, buildWhereNoCustomer(conversationsTable.createdAt), "conversations");
+        // ── 5. survey_test_sends (FK → surveys with CASCADE)
+        if (run || runSurveys) {
+          await txDel(
+            sql`DELETE FROM survey_test_sends
+                WHERE (${since}::timestamptz IS NULL OR sent_at >= ${since})`,
+            "survey_test_sends"
+          );
         }
 
-        // ── audit_logs scope ─────────────────────────────────────────────────
-        if (!doAll && scopes.includes("audit_logs")) {
-          await del(auditLogsTable, buildWhereNoCustomer(auditLogsTable.createdAt), "audit_logs");
+        // ── 6. survey_campaigns (FK → surveys)
+        if (run || runSurveys) {
+          await txDel(
+            sql`DELETE FROM survey_campaigns
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "survey_campaigns"
+          );
         }
-        if (doAll) {
-          await del(auditLogsTable, undefined, "audit_logs");
+
+        // ── 7. surveys
+        if (run || runSurveys) {
+          await txDel(
+            sql`DELETE FROM surveys
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "surveys"
+          );
+        }
+
+        // ── 8. segments
+        if (run || runSurveys) {
+          await txDel(
+            sql`DELETE FROM segments
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "segments"
+          );
+        }
+
+        // ── 9. interactions (FK → customers)
+        if (run || runInteractions) {
+          await txDel(
+            sql`DELETE FROM interactions
+                WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+                AND (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "interactions"
+          );
+        }
+
+        // ── 10. interaction_records (FK → customers)
+        if (run || runInteractions) {
+          await txDel(
+            sql`DELETE FROM interaction_records
+                WHERE (${emailLike}::text IS NULL OR customer_id IN (SELECT id FROM customers WHERE email LIKE ${emailLike}))
+                AND (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "interaction_records"
+          );
+        }
+
+        // ── 11. messages (FK → conversations, CASCADE)
+        if (runConversations) {
+          await txDel(
+            sql`DELETE FROM messages
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "messages"
+          );
+        }
+
+        // ── 12. conversations
+        if (runConversations) {
+          await txDel(
+            sql`DELETE FROM conversations
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "conversations"
+          );
+        }
+
+        // ── 13. customers (last, after all FK children gone)
+        if (run) {
+          await txDel(
+            sql`DELETE FROM customers
+                WHERE (${emailLike}::text IS NULL OR email LIKE ${emailLike})
+                AND (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "customers"
+          );
+        }
+
+        // ── 14. audit_logs
+        if (runAuditLogs) {
+          await txDel(
+            sql`DELETE FROM audit_logs
+                WHERE (${since}::timestamptz IS NULL OR created_at >= ${since})`,
+            "audit_logs"
+          );
         }
       });
 
       const totalDeleted = Object.values(deleted).reduce((a, b) => a + b, 0);
 
-      // Audit log (only if we didn't just wipe audit_logs)
-      if (!doAll && !scopes.includes("audit_logs")) {
+      // Write audit entry (only if audit_logs wasn't wiped)
+      if (!runAuditLogs) {
         try {
-          await db.insert(auditLogsTable).values({
-            action: "test_data_cleanup",
-            entityType: "system",
-            entityId: null,
-            userId: (req.user as any)?.id ?? null,
-            details: JSON.stringify({ scopes, filters, deleted, totalDeleted }),
-            piiMasked: false,
-          });
+          const userId = (req.user as any)?.id ?? null;
+          const details = JSON.stringify({ scopes, filters, deleted, totalDeleted });
+          await db.execute(
+            sql`INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details, pii_masked)
+                VALUES ('test_data_cleanup', 'system', NULL, ${userId}, ${details}, false)`
+          );
         } catch {
-          // non-fatal
+          // non-fatal — don't fail the request if audit insert fails
         }
       }
 
       res.json({ success: true, deleted, totalDeleted });
     } catch (err) {
-      res.status(500).json({ error: "Silme işlemi başarısız", details: String(err) });
+      console.error("[admin-test-data] delete error:", err);
+      res.status(500).json({
+        error: "Silme işlemi başarısız",
+        details: String(err),
+      });
     }
   }
 );
