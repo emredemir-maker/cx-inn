@@ -1,0 +1,136 @@
+name: Deploy to Firebase + Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ─── 1. Build & Deploy API to Cloud Run ───────────────────────────────────
+  deploy-api:
+    name: Deploy API to Cloud Run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      GCP_REGION: europe-west1
+      CLOUD_RUN_SERVICE: cx-inn-api
+      AR_REGISTRY: europe-west1-docker.pkg.dev
+      AR_REPO: cx-inn
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
+      - name: Create Artifact Registry repository (idempotent)
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          gcloud artifacts repositories describe cx-inn \
+            --location=europe-west1 \
+            --project="$GCP_PROJECT_ID" 2>/dev/null || \
+          gcloud artifacts repositories create cx-inn \
+            --repository-format=docker \
+            --location=europe-west1 \
+            --project="$GCP_PROJECT_ID" \
+            --description="cx-inn API server images"
+
+      - name: Build Docker image
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GIT_SHA: ${{ github.sha }}
+          DOCKER_BUILDKIT: "1"
+        run: |
+          IMAGE="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/cx-inn/api-server"
+          docker build \
+            --tag "${IMAGE}:${GIT_SHA}" \
+            --tag "${IMAGE}:latest" \
+            --cache-from "${IMAGE}:latest" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            .
+
+      - name: Push Docker image
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          IMAGE="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/cx-inn/api-server"
+          docker push "${IMAGE}:${GIT_SHA}"
+          docker push "${IMAGE}:latest"
+
+      - name: Deploy to Cloud Run
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GIT_SHA: ${{ github.sha }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          IMAGE="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/cx-inn/api-server:${GIT_SHA}"
+          gcloud run deploy cx-inn-api \
+            --image="$IMAGE" \
+            --region=europe-west1 \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --memory=512Mi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=10 \
+            --timeout=60s \
+            --concurrency=80 \
+            --set-env-vars="NODE_ENV=production,PORT=8080,ALLOWED_ORIGIN=https://${FIREBASE_PROJECT_ID}.web.app" \
+            --set-secrets="DATABASE_URL=CX_INN_DATABASE_URL:latest,GEMINI_API_KEY=CX_INN_GEMINI_API_KEY:latest,FIREBASE_PROJECT_ID=CX_INN_FIREBASE_PROJECT_ID:latest,FIREBASE_SERVICE_ACCOUNT=CX_INN_FIREBASE_SERVICE_ACCOUNT:latest,GMAIL_USER=CX_INN_GMAIL_USER:latest,GMAIL_APP_PASSWORD=CX_INN_GMAIL_APP_PASSWORD:latest" \
+            --project="$GCP_PROJECT_ID"
+
+  # ─── 2. Build & Deploy Frontend to Firebase Hosting ───────────────────────
+  deploy-frontend:
+    name: Deploy Frontend to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: deploy-api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        env:
+          NODE_ENV: production
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: pnpm --filter @workspace/cx-platform run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HOSTING }}
+          channelId: live
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
