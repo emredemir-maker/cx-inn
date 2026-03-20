@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { segmentsTable, customersTable, interactionRecordsTable, cxAnalysesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { segmentsTable, customersTable, interactionRecordsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAuth } from "../middleware/requireRole";
 import { sanitizeError } from "../lib/sanitize-error";
+import { computeSegmentStats } from "../services/segment.service";
 
 const router: IRouter = Router();
 
@@ -358,33 +359,5 @@ router.get("/segments/customer-transitions", requireAuth, async (_req, res) => {
     res.status(500).json({ error: sanitizeError(err) });
   }
 });
-
-// ─── Helper: compute customer count & avg NPS for a set of tags ───────────────
-async function computeSegmentStats(sourceTags?: string[] | null): Promise<{ customerCount: number; avgNps: number | null }> {
-  if (!sourceTags || sourceTags.length === 0) {
-    return { customerCount: 0, avgNps: null };
-  }
-
-  const countResult = await db.execute<{ count: string }>(sql`
-    SELECT COUNT(DISTINCT customer_id)::text as count
-    FROM ${interactionRecordsTable}
-    WHERE tags && ARRAY[${sql.join(sourceTags.map((t) => sql`${t}`), sql`, `)}]::text[]
-  `);
-  const customerCount = parseInt(countResult.rows[0]?.count ?? "0", 10);
-
-  const npsResult = await db.execute<{ avg_nps: string | null }>(sql`
-    SELECT ROUND(AVG(predicted_nps)::numeric, 1)::text as avg_nps
-    FROM ${cxAnalysesTable}
-    WHERE customer_id IN (
-      SELECT DISTINCT customer_id FROM ${interactionRecordsTable}
-      WHERE tags && ARRAY[${sql.join(sourceTags.map((t) => sql`${t}`), sql`, `)}]::text[]
-    )
-    AND predicted_nps IS NOT NULL
-  `);
-  const rawAvg = npsResult.rows[0]?.avg_nps;
-  const avgNps = rawAvg ? parseFloat(rawAvg) : null;
-
-  return { customerCount, avgNps };
-}
 
 export default router;
