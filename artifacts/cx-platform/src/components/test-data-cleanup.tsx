@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -104,7 +104,7 @@ function CountBadge({ value, loading }: { value: number; loading: boolean }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function TestDataCleanup() {
-  const { realRole, refreshSession } = useAppAuth();
+  const { realRole, refreshSession, login } = useAppAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -124,6 +124,16 @@ export function TestDataCleanup() {
   if (emailPattern.trim()) countsParams.set("emailPattern", emailPattern.trim());
   if (dateRange !== "all") countsParams.set("dateRange", dateRange);
 
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Auto-refresh session when panel expands (pre-warm before any query fires)
+  useEffect(() => {
+    if (expanded) {
+      setSessionExpired(false);
+      refreshSession().catch(() => {/* non-fatal */});
+    }
+  }, [expanded]);
+
   const { data: counts, isLoading: countsLoading, error: countsError } = useQuery<Counts>({
     queryKey: ["test-data-counts", emailPattern, dateRange],
     queryFn: async () => {
@@ -137,14 +147,20 @@ export function TestDataCleanup() {
           const retry = await fetch(`/api/admin/test-data/counts?${countsParams}`, {
             credentials: "include",
           });
-          if (retry.ok) return retry.json();
+          if (retry.ok) {
+            setSessionExpired(false);
+            return retry.json();
+          }
         }
-        throw new Error("Oturum süresi doldu — lütfen sayfayı yenileyin");
+        // Firebase session itself has expired — user must re-login
+        setSessionExpired(true);
+        throw new Error("session_expired");
       }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.details ?? body.error ?? `HTTP ${res.status}`);
       }
+      setSessionExpired(false);
       return res.json();
     },
     refetchInterval: 30_000,
@@ -154,25 +170,45 @@ export function TestDataCleanup() {
 
   // ── Delete mutation ──────────────────────────────────────────────────────
 
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/admin/test-data", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scopes: Array.from(selected),
-          filters: {
-            ...(emailPattern.trim() && { emailPattern: emailPattern.trim() }),
-            ...(dateRange !== "all" && { dateRange }),
-          },
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Silme başarısız");
+  const doDelete = async () => {
+    const body = JSON.stringify({
+      scopes: Array.from(selected),
+      filters: {
+        ...(emailPattern.trim() && { emailPattern: emailPattern.trim() }),
+        ...(dateRange !== "all" && { dateRange }),
+      },
+    });
+    const res = await fetch("/api/admin/test-data", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body,
+    });
+    if (res.status === 401) {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        const retry = await fetch("/api/admin/test-data", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body,
+        });
+        if (retry.ok) return retry.json();
+        const retryErr = await retry.json().catch(() => ({}));
+        throw new Error(retryErr.error ?? "Silme başarısız");
       }
-      return res.json();
-    },
+      setSessionExpired(true);
+      throw new Error("Oturum süresi doldu — lütfen yeniden giriş yapın");
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? "Silme başarısız");
+    }
+    return res.json();
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: doDelete,
     onSuccess: (data) => {
       setShowModal(false);
       setConfirmText("");
@@ -251,8 +287,24 @@ export function TestDataCleanup() {
               </p>
             </div>
 
-            {/* Count fetch error */}
-            {countsError && (
+            {/* Session expired — re-login prompt */}
+            {sessionExpired && (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-300/90">Oturum süresi doldu.</p>
+                </div>
+                <button
+                  onClick={() => login()}
+                  className="shrink-0 px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold transition-colors"
+                >
+                  Yeniden Giriş Yap
+                </button>
+              </div>
+            )}
+
+            {/* Count fetch error (non-session errors) */}
+            {countsError && !sessionExpired && (
               <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 p-3">
                 <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-red-300/90">Sayım alınamadı: {(countsError as Error).message}</p>

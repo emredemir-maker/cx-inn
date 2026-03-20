@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  type User as FirebaseUser,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -60,6 +61,10 @@ async function fetchCurrentUser(): Promise<AppUser | null> {
 export function useFirebaseAuth(): AuthState {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Keep a stable ref to the latest Firebase user so refreshSession can
+  // access it without depending on auth.currentUser (which may be null
+  // before the first onAuthStateChanged callback fires).
+  const firebaseUserRef = useRef<FirebaseUser | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +75,9 @@ export function useFirebaseAuth(): AuthState {
     // using the current Firebase ID token.
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (cancelled) return;
+
+      // Always keep the ref in sync with the latest Firebase auth state.
+      firebaseUserRef.current = firebaseUser;
 
       if (!firebaseUser) {
         // Firebase user is gone — ensure backend is also cleared
@@ -122,7 +130,10 @@ export function useFirebaseAuth(): AuthState {
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     try {
-      const firebaseUser = auth.currentUser;
+      // Use the ref (kept in sync by onAuthStateChanged) rather than the
+      // synchronous auth.currentUser accessor, which can be null before
+      // the first auth state callback fires.
+      const firebaseUser = firebaseUserRef.current ?? auth.currentUser;
       if (!firebaseUser) return false;
       const idToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
       const refreshedUser = await exchangeToken(idToken);
