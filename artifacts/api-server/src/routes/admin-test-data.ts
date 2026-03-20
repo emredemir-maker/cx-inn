@@ -19,8 +19,8 @@ function sanitizeEmailPattern(raw: string): string {
   return raw.replace(/^@/, "").replace(/[%_]/g, "").trim();
 }
 
-function dateRangeStart(range: string | undefined): Date | undefined {
-  if (!range || range === "all") return undefined;
+function dateRangeStart(range: string | undefined): Date | null {
+  if (!range || range === "all") return null;
   const now = new Date();
   if (range === "today") {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -30,7 +30,7 @@ function dateRangeStart(range: string | undefined): Date | undefined {
     d.setDate(d.getDate() - 7);
     return d;
   }
-  return undefined;
+  return null;
 }
 
 /** Extract numeric count from a db.execute result */
