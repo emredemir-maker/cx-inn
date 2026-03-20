@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -104,7 +104,7 @@ function CountBadge({ value, loading }: { value: number; loading: boolean }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function TestDataCleanup() {
-  const { realRole, refreshSession, login, user } = useAppAuth();
+  const { realRole, refreshSession, login, user, getIdToken } = useAppAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -126,6 +126,17 @@ export function TestDataCleanup() {
 
   const [sessionExpired, setSessionExpired] = useState(false);
 
+  // Authenticated fetch — sends Firebase Bearer token so auth works even when
+  // session cookie is missing (e.g. Firebase Hosting strips Set-Cookie headers)
+  const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const token = await getIdToken();
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> ?? {}),
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(url, { ...options, credentials: "include", headers });
+  }, [getIdToken]);
+
   // Auto-refresh session when panel expands (pre-warm before any query fires)
   useEffect(() => {
     if (expanded) {
@@ -145,22 +156,9 @@ export function TestDataCleanup() {
   const { data: counts, isLoading: countsLoading, error: countsError } = useQuery<Counts>({
     queryKey: ["test-data-counts", emailPattern, dateRange],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/test-data/counts?${countsParams}`, {
-        credentials: "include",
-      });
+      const res = await authedFetch(`/api/admin/test-data/counts?${countsParams}`);
       if (res.status === 401) {
-        // Backend session expired — try to refresh silently then retry once
-        const refreshed = await refreshSession();
-        if (refreshed) {
-          const retry = await fetch(`/api/admin/test-data/counts?${countsParams}`, {
-            credentials: "include",
-          });
-          if (retry.ok) {
-            setSessionExpired(false);
-            return retry.json();
-          }
-        }
-        // Firebase session itself has expired — user must re-login
+        // Bearer token also failed — Firebase session itself expired
         setSessionExpired(true);
         throw new Error("session_expired");
       }
@@ -179,32 +177,19 @@ export function TestDataCleanup() {
   // ── Delete mutation ──────────────────────────────────────────────────────
 
   const doDelete = async () => {
-    const body = JSON.stringify({
+    const reqBody = JSON.stringify({
       scopes: Array.from(selected),
       filters: {
         ...(emailPattern.trim() && { emailPattern: emailPattern.trim() }),
         ...(dateRange !== "all" && { dateRange }),
       },
     });
-    const res = await fetch("/api/admin/test-data", {
+    const res = await authedFetch("/api/admin/test-data", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body,
+      body: reqBody,
     });
     if (res.status === 401) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
-        const retry = await fetch("/api/admin/test-data", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body,
-        });
-        if (retry.ok) return retry.json();
-        const retryErr = await retry.json().catch(() => ({}));
-        throw new Error(retryErr.error ?? "Silme başarısız");
-      }
       setSessionExpired(true);
       throw new Error("Oturum süresi doldu — lütfen yeniden giriş yapın");
     }

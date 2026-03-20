@@ -8,6 +8,7 @@ export interface AuthContextValue {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
+  getIdToken: () => Promise<string | null>;
 }
 
 export const AuthContext = createContext<AuthContextValue>({
@@ -16,6 +17,7 @@ export const AuthContext = createContext<AuthContextValue>({
   login: async () => {},
   logout: async () => {},
   refreshSession: async () => false,
+  getIdToken: async () => null,
 });
 
 export function useAppAuth() {

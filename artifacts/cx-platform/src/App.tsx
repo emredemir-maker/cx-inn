@@ -90,6 +90,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         login: auth.login,
         logout: auth.logout,
         refreshSession: auth.refreshSession,
+        getIdToken: auth.getIdToken,
       }}
     >
       {!auth.isAuthenticated ? (

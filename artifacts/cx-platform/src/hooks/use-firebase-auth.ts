@@ -27,6 +27,8 @@ interface AuthState {
   logout: () => Promise<void>;
   /** Re-establish backend session using current Firebase token (call on 401) */
   refreshSession: () => Promise<boolean>;
+  /** Get a fresh Firebase ID token for Bearer auth (returns null if not signed in) */
+  getIdToken: () => Promise<string | null>;
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
@@ -147,6 +149,16 @@ export function useFirebaseAuth(): AuthState {
     }
   }, []);
 
+  const getIdToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const firebaseUser = firebaseUserRef.current ?? auth.currentUser;
+      if (!firebaseUser) return null;
+      return await firebaseUser.getIdToken();
+    } catch {
+      return null;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await fetch(`${BASE}/api/logout`, {
@@ -167,5 +179,6 @@ export function useFirebaseAuth(): AuthState {
     login,
     logout,
     refreshSession,
+    getIdToken,
   };
 }
