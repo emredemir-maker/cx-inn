@@ -104,7 +104,7 @@ function CountBadge({ value, loading }: { value: number; loading: boolean }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function TestDataCleanup() {
-  const { realRole } = useAppAuth();
+  const { realRole, refreshSession } = useAppAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -127,7 +127,20 @@ export function TestDataCleanup() {
   const { data: counts, isLoading: countsLoading, error: countsError } = useQuery<Counts>({
     queryKey: ["test-data-counts", emailPattern, dateRange],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/test-data/counts?${countsParams}`);
+      const res = await fetch(`/api/admin/test-data/counts?${countsParams}`, {
+        credentials: "include",
+      });
+      if (res.status === 401) {
+        // Backend session expired — try to refresh silently then retry once
+        const refreshed = await refreshSession();
+        if (refreshed) {
+          const retry = await fetch(`/api/admin/test-data/counts?${countsParams}`, {
+            credentials: "include",
+          });
+          if (retry.ok) return retry.json();
+        }
+        throw new Error("Oturum süresi doldu — lütfen sayfayı yenileyin");
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.details ?? body.error ?? `HTTP ${res.status}`);
@@ -136,7 +149,7 @@ export function TestDataCleanup() {
     },
     refetchInterval: 30_000,
     enabled: expanded,
-    retry: 1,
+    retry: 0,
   });
 
   // ── Delete mutation ──────────────────────────────────────────────────────

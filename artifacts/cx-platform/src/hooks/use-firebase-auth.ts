@@ -24,6 +24,8 @@ interface AuthState {
   isAuthenticated: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-establish backend session using current Firebase token (call on 401) */
+  refreshSession: () => Promise<boolean>;
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
@@ -118,6 +120,22 @@ export function useFirebaseAuth(): AuthState {
     }
   }, []);
 
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser) return false;
+      const idToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
+      const refreshedUser = await exchangeToken(idToken);
+      if (refreshedUser) {
+        setUser(refreshedUser);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await fetch(`${BASE}/api/logout`, {
@@ -137,5 +155,6 @@ export function useFirebaseAuth(): AuthState {
     isAuthenticated: !!user,
     login,
     logout,
+    refreshSession,
   };
 }
