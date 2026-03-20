@@ -104,7 +104,7 @@ function CountBadge({ value, loading }: { value: number; loading: boolean }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function TestDataCleanup() {
-  const { realRole, refreshSession, login } = useAppAuth();
+  const { realRole, refreshSession, login, user } = useAppAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -133,6 +133,14 @@ export function TestDataCleanup() {
       refreshSession().catch(() => {/* non-fatal */});
     }
   }, [expanded]);
+
+  // Reset session-expired state whenever the auth user changes (e.g. after re-login)
+  useEffect(() => {
+    if (user && sessionExpired) {
+      setSessionExpired(false);
+      queryClient.invalidateQueries({ queryKey: ["test-data-counts"] });
+    }
+  }, [user]);
 
   const { data: counts, isLoading: countsLoading, error: countsError } = useQuery<Counts>({
     queryKey: ["test-data-counts", emailPattern, dateRange],
@@ -295,7 +303,12 @@ export function TestDataCleanup() {
                   <p className="text-xs text-amber-300/90">Oturum süresi doldu.</p>
                 </div>
                 <button
-                  onClick={() => login()}
+                  onClick={async () => {
+                    await login();
+                    // After login completes, reset state and re-fetch counts
+                    setSessionExpired(false);
+                    queryClient.invalidateQueries({ queryKey: ["test-data-counts"] });
+                  }}
                   className="shrink-0 px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold transition-colors"
                 >
                   Yeniden Giriş Yap
