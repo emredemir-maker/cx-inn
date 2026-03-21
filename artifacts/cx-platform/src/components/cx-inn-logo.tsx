@@ -3,31 +3,36 @@ import { useId } from "react";
 interface CxInnLogoProps {
   /** Height of the SVG in pixels */
   size?: number;
-  /** "icon" = symbol only, "full" = symbol + text */
+  /** "icon" = symbol only, "full" = symbol + "Cx-Inn" text */
   variant?: "icon" | "full";
   className?: string;
 }
 
 /**
- * CX-Inn brand logo — faithful dark-theme adaptation of the original.
+ * CX-Inn brand logo — dark-theme faithful recreation.
  *
- * Original logo analysis:
- *  - Left large C  : opens RIGHT, dark navy — adapted to white on dark bg
- *  - Right smaller ∂: opens LEFT (backwards C), same navy — adapted to white
- *  - Together they form an infinity-like interlocking symbol
- *  - Teal diagonal arrow rising from the intersection of the two shapes
- *  - "Cx-Inn" text: single unified color
+ * Symbol geometry (viewBox 0 0 88 62):
  *
- * ViewBox: icon 80×62, full 196×62
- * Left C  : center (36, 31), radius 23 — opens right  → M 36 8 A 23 23 0 1 0 36 54
- * Right ∂ : center (56, 31), radius 16 — opens left   → M 56 15 A 16 16 0 1 1 56 47
- * Arrow   : shaft (42, 48) → (64, 13), head at (64, 13)
+ *   LEFT C  — large, opens RIGHT, center (30,31) radius 25
+ *             M 30 6 A 25 25 0 1 0 30 56
+ *             x range: 5 → 55  (left edge → gap opening)
+ *
+ *   RIGHT ∂ — smaller, opens LEFT, center (58,31) radius 19
+ *             M 58 12 A 19 19 0 1 1 58 50
+ *             x range: 39 → 77  (gap opening ← right edge)
+ *
+ *   OVERLAP zone: x 39–55  → shapes interlock like ∞
+ *
+ *   ARROW  — diagonal from (40,52) → (71,10), head at tip
+ *             teal gradient #22D3EE → #34D399
+ *
+ * Full variant adds "Cx-Inn" text; viewBox widens to 0 0 210 62.
  */
 export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInnLogoProps) {
   const uid = useId().replace(/:/g, "");
-  const gradId = `arrow-${uid}`;
+  const gradId = `cxinn-arrow-${uid}`;
 
-  const W = variant === "full" ? 196 : 80;
+  const W = variant === "full" ? 210 : 88;
   const H = 62;
   const aspect = W / H;
 
@@ -49,59 +54,61 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
         </linearGradient>
       </defs>
 
-      {/* ── Left large C — opens RIGHT (standard C shape) ── */}
-      {/* Center (36, 31), radius 23: arc from top (36,8) CCW to bottom (36,54) */}
+      {/* ── Left large C — opens RIGHT ────────────────────────────────
+           Center (30,31) radius 25.
+           Arc from top (30,6) counterclockwise to bottom (30,56):
+           large-arc=1, sweep=0 → traces the left/bottom arc = C shape  */}
       <path
-        d="M 36 8 A 23 23 0 1 0 36 54"
+        d="M 30 6 A 25 25 0 1 0 30 56"
         stroke="rgba(255,255,255,0.92)"
-        strokeWidth="7.5"
+        strokeWidth="8"
         strokeLinecap="round"
         fill="none"
       />
 
-      {/* ── Right smaller backwards-C — opens LEFT (∂ shape) ── */}
-      {/* Center (56, 31), radius 16: arc from top (56,15) CW to bottom (56,47) */}
+      {/* ── Right backwards-C (∂) — opens LEFT ───────────────────────
+           Center (58,31) radius 19.
+           Arc from top (58,12) clockwise to bottom (58,50):
+           large-arc=1, sweep=1 → traces the right arc = ∂ shape      */}
       <path
-        d="M 56 15 A 16 16 0 1 1 56 47"
-        stroke="rgba(255,255,255,0.80)"
-        strokeWidth="6"
+        d="M 58 12 A 19 19 0 1 1 58 50"
+        stroke="rgba(255,255,255,0.78)"
+        strokeWidth="6.5"
         strokeLinecap="round"
         fill="none"
       />
 
-      {/* ── Teal arrow shaft — rises diagonally from intersection area ── */}
+      {/* ── Teal arrow shaft — rises from junction to upper-right ────  */}
       <line
-        x1="42"
-        y1="48"
-        x2="64"
-        y2="13"
+        x1="40" y1="52"
+        x2="68" y2="13"
         stroke={`url(#${gradId})`}
         strokeWidth="5.5"
         strokeLinecap="round"
       />
 
-      {/* ── Arrow head (triangle at tip) ── */}
-      <path d="M 64 13 L 53 17 L 59 25 Z" fill="#22D3EE" />
+      {/* ── Arrow head (triangle at tip) ──────────────────────────────  */}
+      <path d="M 71 10 L 60 15 L 66 23 Z" fill="#22D3EE" />
 
-      {/* ── Text (full variant only) ── */}
+      {/* ── Text (full variant only) ──────────────────────────────────  */}
       {variant === "full" && (
         <>
           <text
-            x="88"
+            x="96"
             y="43"
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
             fontWeight="800"
-            fontSize="32"
+            fontSize="33"
             fill="rgba(255,255,255,0.95)"
           >
             Cx
           </text>
           <text
-            x="125"
+            x="135"
             y="43"
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
-            fontWeight="600"
-            fontSize="32"
+            fontWeight="500"
+            fontSize="33"
             fill="rgba(255,255,255,0.70)"
           >
             -Inn
