@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
   type User as FirebaseUser,
@@ -71,6 +72,14 @@ export function useFirebaseAuth(): AuthState {
   useEffect(() => {
     let cancelled = false;
 
+    // After a signInWithRedirect, the browser returns to this page.
+    // getRedirectResult resolves with the credential (or null if no pending
+    // redirect). onAuthStateChanged fires immediately after and handles the
+    // token exchange, so we only need to surface any redirect errors here.
+    getRedirectResult(auth).catch((err) => {
+      console.error("[Auth] Redirect sign-in error:", err);
+    });
+
     // Listen to Firebase Auth state changes.
     // When Firebase has a valid user but the backend session has expired
     // (e.g. after a long idle period), silently refresh the backend session
@@ -120,14 +129,9 @@ export function useFirebaseAuth(): AuthState {
     const provider = new GoogleAuthProvider();
     provider.addScope("email");
     provider.addScope("profile");
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const idToken = await result.user.getIdToken();
-      const appUser = await exchangeToken(idToken);
-      setUser(appUser);
-    } catch (err) {
-      console.error("[Auth] Popup sign-in error:", err);
-    }
+    // Full-page redirect — no popup window.
+    // onAuthStateChanged fires on return and handles the token exchange.
+    await signInWithRedirect(auth, provider);
   }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
