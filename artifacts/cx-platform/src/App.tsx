@@ -24,6 +24,7 @@ import SettingsPage from "./pages/settings";
 import UserManagementPage from "./pages/user-management";
 import ApprovalsPage from "./pages/approvals";
 import ManualPage from "./pages/manual";
+import TechDocsPage from "./pages/tech-docs";
 import PermissionsPage from "./pages/permissions";
 import TagTaxonomyPage from "./pages/tag-taxonomy";
 import LoginPage from "./pages/login";
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/user-management" component={UserManagementPage} />
       <Route path="/approvals" component={ApprovalsPage} />
       <Route path="/manual" component={ManualPage} />
+      <Route path="/tech-docs" component={TechDocsPage} />
       <Route path="/permissions" component={PermissionsPage} />
       <Route path="/tag-taxonomy" component={TagTaxonomyPage} />
       <Route component={NotFound} />

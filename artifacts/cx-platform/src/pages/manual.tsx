@@ -10,6 +10,7 @@ import {
   Sparkles, Layers, Globe, Eye, Edit3, Send, Bell, Filter,
   Download, RefreshCw, Clock, Hash, ChevronDown, ChevronUp,
   TrendingUp, Activity, AlertTriangle, MessageCircle, Target,
+  Bot, Building2, SlidersHorizontal,
 } from "lucide-react";
 import type { UserRole } from "@/hooks/use-firebase-auth";
 
@@ -192,6 +193,9 @@ const SECTIONS: Section[] = [
   { id: "ayarlar",      title: "Ayarlar & API",            icon: Settings,    color: "#64748b" },
   { id: "rol-gorunum",  title: "Rol Görünümü (View As)",   icon: Eye,         color: "#f59e0b" },
   { id: "yetki-matrisi",title: "Yetki Matrisi",            icon: Lock,        color: "#ec4899" },
+  { id: "cx-ai",         title: "Cx-Ai Asistanı",           icon: Bot,         color: "#06b6d4" },
+  { id: "domain-yonetimi", title: "Domain Yönetimi",       icon: Globe,       color: "#8b5cf6" },
+  { id: "firma-segment", title: "Firma & Segment",         icon: Layers,      color: "#f59e0b" },
   { id: "metrik",       title: "Metrik Tanımları",         icon: BarChart3,   color: "#06b6d4" },
   { id: "sss",          title: "Sıkça Sorulan Sorular",    icon: HelpCircle,  color: "#a855f7" },
 ];
@@ -209,11 +213,11 @@ const SECTION_INDEX: Array<{ id: string; title: string; icon: React.ElementType;
     keywords: ["kullanıcı", "davet", "ekle", "sil", "düzenle", "yönet", "ekip", "üye", "personel", "rol atama", "davetiye", "e-posta daveti"],
     snippets: ["Yeni kullanıcıyı e-posta ile davet edin", "Kullanıcıya rol atayın: Süper Admin, CX Manager, CX Kullanıcısı", "Kullanıcıları listeleyin, düzenleyin veya silin", "Davetli kullanıcı Google hesabıyla giriş yapar"] },
   { id: "import", title: "Etkileşim İçe Aktarma", icon: Upload, color: "#06b6d4",
-    keywords: ["içe aktar", "import", "yükle", "csv", "excel", "xlsx", "veri", "etkileşim", "dosya", "toplu", "bulk", "upload", "müşteri verisi"],
-    snippets: ["CSV veya Excel ile toplu etkileşim yükleme", "Sütun eşleştirme: müşteri adı, e-posta, kanal, metin", "Yükleme sonrası AI otomatik analiz başlatır", "Hatalı satırlar için önizleme ve doğrulama"] },
+    keywords: ["içe aktar", "import", "yükle", "csv", "excel", "xlsx", "veri", "etkileşim", "dosya", "toplu", "bulk", "upload", "müşteri verisi", "şablon", "infoset", "otomatik hariç", "no-reply filtre"],
+    snippets: ["CSV veya Excel ile toplu etkileşim yükleme (20MB)", "No-reply ve bildirim e-postaları otomatik hariç tutulur", "Batch AI analizi: 100 etkileşim ~15-20 saniye", "Infoset formatı otomatik algılanır"] },
   { id: "ai-analiz", title: "AI Analizi", icon: Brain, color: "#10b981",
-    keywords: ["ai", "yapay zeka", "gemini", "analiz", "nps", "csat", "duygu", "tahmin", "puan", "skor", "sentiment", "nlp", "doğal dil", "segmentasyon", "ağrı noktası", "şikayet"],
-    snippets: ["Gemini 2.5 AI her etkileşimi otomatik analiz eder", "NPS: 0–10 skala, 9–10 Promoter, 7–8 Pasif, 0–6 Detractor", "CSAT: 1–5 müşteri memnuniyeti", "Duygu analizi: Pozitif Negatif Nötr sınıflandırma", "Ağrı noktaları ve şikayet tespiti"] },
+    keywords: ["ai", "yapay zeka", "gemini", "analiz", "nps", "csat", "duygu", "tahmin", "puan", "skor", "sentiment", "nlp", "doğal dil", "segmentasyon", "ağrı noktası", "şikayet", "batch", "toplu analiz", "ai sınıflandır"],
+    snippets: ["Gemini 2.5 AI her etkileşimi otomatik analiz eder", "Batch motor: 5 müşteri / tek çağrı, 3 paralel grup", "NPS: 0–10 skala, 9–10 Promoter, 7–8 Pasif, 0–6 Detractor", "AI Sınıflandır: seçili müşteri için yeniden analiz tetikler"] },
   { id: "anket", title: "Anket Yönetimi", icon: FileText, color: "#3b82f6",
     keywords: ["anket", "survey", "soru", "form", "geri bildirim", "feedback", "nps anketi", "csat anketi", "oluştur", "yayınla", "şablon", "tasarım"],
     snippets: ["Yeni anket oluşturun veya şablondan başlayın", "NPS ve CSAT anket şablonları hazır", "Anket onay akışına gönderilir", "Yayınlanan anket e-posta ile gönderilir", "Cevap oranı ve sonuç analizi"] },
@@ -235,6 +239,15 @@ const SECTION_INDEX: Array<{ id: string; title: string; icon: React.ElementType;
   { id: "yetki-matrisi", title: "Yetki Matrisi", icon: Lock, color: "#ec4899",
     keywords: ["yetki matrisi", "permission matrix", "yetki düzenle", "erişim seviyesi", "tam erişim", "erişim yok", "kısıtlı", "modül erişimi", "pii yetki", "eylem yetki", "sıfırla", "reset", "veritabanı yetki"],
     snippets: ["Modül erişimi: Tam Erişim, Görüntüleme, Kısıtlı, Onay Gerekli, Erişim Yok", "PII sekmesi: e-posta maskeleme", "Eylem Yetkileri: Silme, Düzenleme, Onaylama", "Değişiklikler veritabanına kaydedilir anında etkili", "Süper Admin sütunu kilitlidir"] },
+  { id: "cx-ai", title: "Cx-Ai Asistanı", icon: Bot, color: "#06b6d4",
+    keywords: ["cx-ai", "cx ai", "ai asistan", "yapay zeka sorgu", "nlp sorgu", "doğal dil", "sorgula", "analitik soru", "sohbet", "panel", "bot", "ai sorgu", "pdf rapor ai"],
+    snippets: ["Doğal dille analitik soru sorun: 'En kötü NPS kim?'", "Gemini AI anlık yanıt üretir", "Sağ üst köşedeki Cx-Ai butonuna tıklayın", "Yanıtlar PDF olarak dışa aktarılabilir"] },
+  { id: "domain-yonetimi", title: "Domain Yönetimi", icon: Globe, color: "#8b5cf6",
+    keywords: ["domain", "hariç tut", "exclude", "filtre", "no-reply", "bildirim", "otomatik", "domain listesi", "domain ekle", "domain sil", "içe aktarma filtresi", "spam", "bot mail"],
+    snippets: ["Etkileşim kayıtlarında Domain Ayarları butonuna tıklayın", "Domain ekleyin: infoset.app, noreply.com…", "Sistem otomatik tespit ettiği domainleri kendi ekler", "Manuel ve otomatik domain rozetleri gösterilir"] },
+  { id: "firma-segment", title: "Firma & Segment", icon: Layers, color: "#f59e0b",
+    keywords: ["firma", "segment", "ai segment", "kolon", "müşteri kolonu", "segment önerisi", "ai etiket", "etiket örtüşme", "kullanıcı segmenti", "segment atama"],
+    snippets: ["Müşteriler sayfasında Firma ve Segment ayrı kolondur", "Segment: kullanıcı atandıysa onu gösterir", "✦ AI rozeti: yapay zekanın önerdiği segment", "AI segment etiket örtüşmesiyle otomatik eşleşir"] },
   { id: "metrik", title: "Metrik Tanımları", icon: BarChart3, color: "#06b6d4",
     keywords: ["metrik", "tanım", "nps", "csat", "churn", "retention", "promoter", "detractor", "pasif", "puan", "benchmark", "iyi aralık", "hedef", "analitik"],
     snippets: ["NPS: 0–10, 9–10 Promoter, 7–8 Pasif, 0–6 Detractor", "CSAT: 1–5 müşteri memnuniyet puanı", "Churn Riski: yüksek orta düşük", "Retention Rate: müşteriyi elde tutma oranı", "İyi NPS hedefi: 8.5+"] },
@@ -700,16 +713,20 @@ export default function ManualPage() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <Step n={1} title="Etkileşimler Sayfasına Gidin">
-                  Sol menüden <strong className="text-white">Etkileşimler</strong> seçin. Sağ üstte <strong className="text-white">"İçe Aktar"</strong> butonunu bulun.
+                  Sol menüden <strong className="text-white">Etkileşim Kayıtları</strong> seçin. Sağ üstte <strong className="text-white">"İçe Aktar"</strong> butonunu bulun.
                 </Step>
-                <Step n={2} title="CSV Dosyanızı Hazırlayın">
-                  CSV formatı: <code className="text-indigo-300 bg-indigo-500/10 px-1 rounded">customer_id, channel, message, date, sentiment</code> sütunlarını içermelidir.
+                <Step n={2} title="Şablon İndirin (İsteğe Bağlı)">
+                  Standart format için <strong className="text-white">CSV Şablon İndir</strong> veya <strong className="text-white">Excel Şablon İndir</strong> seçeneğini kullanın.
+                  Sütunlar: <code className="text-indigo-300 bg-indigo-500/10 px-1 rounded">customer_email, type, subject, content, status, channel, agent_name, duration_seconds, resolution, interacted_at</code>
                 </Step>
                 <Step n={3} title="Dosyayı Yükleyin">
-                  Drag & drop alanına sürükleyin ya da tıklayarak seçin. Maksimum dosya boyutu 10 MB.
+                  CSV veya Excel dosyanızı sürükleyin ya da seçin. Maksimum dosya boyutu <strong className="text-white">20 MB</strong>. Infoset formatı otomatik algılanır.
                 </Step>
-                <Step n={4} title="AI Analizi Başlar">
-                  Yükleme tamamlandıktan sonra Gemini AI etkileşimleri otomatik analiz eder ve NPS/CSAT skoru atar.
+                <Step n={4} title="Otomatik Filtreleme Çalışır">
+                  Sistem yükleme sırasında <strong className="text-white">no-reply e-postaları</strong>, fatura bildirimleri, OTP mesajları ve pazarlama içeriklerini otomatik tespit eder ve <em>hariç tutuldu</em> olarak işaretler. Hariç tutulan kayıtlar AI analizine dahil edilmez.
+                </Step>
+                <Step n={5} title="Batch AI Analizi Başlar">
+                  Yükleme sonrası Gemini AI etkileşimleri <strong className="text-white">5'li gruplar halinde (batch)</strong> paralel olarak analiz eder. 100 etkileşim yaklaşık 15–20 saniyede tamamlanır.
                 </Step>
               </div>
 
@@ -740,7 +757,25 @@ export default function ManualPage() {
               </ScreenMockup>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
+              {/* Auto-exclusion info */}
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="w-4 h-4 text-amber-400" />
+                  <p className="text-xs font-semibold text-amber-300">Otomatik İlgisizlik Filtresi</p>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-2">
+                  İçe aktarma sonucu panelinde <strong className="text-white">"Otomatik Hariç Tutuldu"</strong> sayısını görebilirsiniz.
+                  Bu kayıtlar veritabanına eklenir ancak AI analizinden çıkarılır — böylece no-reply bildirimleri metriklerinizi bozmaz.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["no-reply@…","noreply@…","OTP / Onay Kodu","Fatura Bildirimi","Kargo Takip","Newsletter","Sistem Bildirimi"].map(c => (
+                    <span key={c} className="px-2 py-1 rounded-full bg-amber-500/10 text-[10px] text-amber-300 border border-amber-500/20">{c}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Channels */}
               <div className="rounded-xl border border-slate-700/40 bg-slate-800/30 p-4">
                 <p className="text-xs font-semibold text-slate-300 mb-3">Desteklenen Veri Kanalları</p>
                 <div className="flex flex-wrap gap-2">
@@ -828,8 +863,243 @@ export default function ManualPage() {
               </ScreenMockup>
             </div>
 
+            <Tip type="success">
+              Batch analiz motoru 5 müşteriyi tek bir Gemini çağrısında işler ve 3 grubu paralel çalıştırır. 100 etkileşim için toplam süre yaklaşık 15–20 saniyedir. Dashboard otomatik yenilenir.
+            </Tip>
+
+            {/* AI Classify button info */}
+            <div className="mt-4 rounded-xl border border-slate-700/40 bg-slate-800/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-cyan-400" />
+                <p className="text-xs font-semibold text-slate-200">"AI Sınıflandır" Butonu Nedir?</p>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Etkileşim Kayıtları sayfasındaki <strong className="text-white">AI Sınıflandır</strong> butonu, seçili müşteri için mevcut tüm etkileşimleri yeniden analiz eder.
+                Önceden analiz edilmemiş veya güncellenmiş kayıtlar için tetiklenebilir. İşlem arka planda çalışır;
+                tamamlandığında müşteri profili ve analitik dashboard güncellenir.
+              </p>
+            </div>
+          </section>
+
+          <div className="border-t border-slate-800" />
+
+          {/* ── Cx-Ai Asistanı ── */}
+          <section id="cx-ai" ref={reg("cx-ai")} className="scroll-mt-4">
+            <SectionHeader
+              icon={Bot} title="Cx-Ai Asistanı" color="bg-cyan-500/15 text-cyan-400 border-cyan-500/25"
+              subtitle="Doğal dille analitik soru sorun — Gemini AI anlık yanıt üretir."
+              roles={["all"]}
+            />
+
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div className="space-y-4">
+                <Step n={1} title="Cx-Ai Butonuna Tıklayın">
+                  Sağ üst menüdeki indigo→teal renk gradyanlı <strong className="text-white">Cx-Ai</strong> butonuna tıklayın. Panel sağ tarafta açılır.
+                </Step>
+                <Step n={2} title="Sorunuzu Yazın">
+                  Doğal Türkçe ile analitik sorular sorun. Örneğin:
+                  <ul className="mt-1.5 space-y-1 text-slate-500">
+                    {[
+                      '"En yüksek churn riski olan müşteri kim?"',
+                      '"Bu ay NPS nasıl değişti?"',
+                      '"Hangi segmentte en çok şikayet var?"',
+                    ].map(q => <li key={q} className="flex items-start gap-1.5"><span className="text-teal-500 mt-0.5">›</span>{q}</li>)}
+                  </ul>
+                </Step>
+                <Step n={3} title="Yanıtı İnceleyin">
+                  Gemini AI müşteri verilerinize dayanarak gerçek zamanlı yanıt oluşturur. Yanıt metni ve önerilen aksiyonlar panel içinde görünür.
+                </Step>
+                <Step n={4} title="PDF Olarak Kaydedin">
+                  Panel içindeki <strong className="text-white">PDF İndir</strong> butonu ile konuşma geçmişini dışa aktarabilirsiniz.
+                </Step>
+              </div>
+
+              <ScreenMockup title="cx-ai">
+                <AppLayoutMockup>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-indigo-500 via-teal-500 to-emerald-500 flex items-center justify-center">
+                        <Bot className="w-3 h-3 text-white" />
+                      </div>
+                      <span className="text-[10px] text-white font-semibold">Cx-Ai Asistanı</span>
+                    </div>
+                    {/* Chat messages */}
+                    <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/40">
+                      <p className="text-[8px] text-teal-300">Siz</p>
+                      <p className="text-[8px] text-slate-300 mt-0.5">En yüksek churn riskli 3 müşteri?</p>
+                    </div>
+                    <div className="bg-teal-500/5 rounded-lg p-2 border border-teal-500/20">
+                      <p className="text-[8px] text-teal-400">Cx-Ai</p>
+                      <div className="space-y-0.5 mt-0.5">
+                        {["1. Ahmet Y. — %89 risk","2. Zeynep K. — %76 risk","3. Can D. — %71 risk"].map(t => (
+                          <p key={t} className="text-[8px] text-slate-300">{t}</p>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <div className="flex-1 h-5 bg-slate-800 rounded-lg border border-slate-700 px-1.5 flex items-center">
+                        <span className="text-[7px] text-slate-600">Bir soru sorun…</span>
+                      </div>
+                      <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center">
+                        <Send className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </AppLayoutMockup>
+              </ScreenMockup>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-3 mb-4">
+              {[
+                { icon: BarChart3, label: "Analitik Sorgular", examples: ["NPS trendi nasıl?", "CSAT ortalaması ne?", "En çok şikayet edilen sorun?"] },
+                { icon: Users, label: "Müşteri Sorguları", examples: ["Churn riski yüksek olanlar?", "Promoter müşteriler kimler?", "Segment dağılımı nasıl?"] },
+                { icon: TrendingUp, label: "Tahmin & Öneriler", examples: ["Hangi segmenti önceliklemeliyim?", "Aksiyon öner", "Bu ay ne değişti?"] },
+              ].map(({ icon: Icon, label, examples }) => (
+                <div key={label} className="rounded-xl border border-slate-700/40 bg-slate-800/20 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="w-3.5 h-3.5 text-teal-400" />
+                    <span className="text-[11px] font-semibold text-white">{label}</span>
+                  </div>
+                  <ul className="space-y-1">
+                    {examples.map(e => (
+                      <li key={e} className="text-[10px] text-slate-500 flex items-start gap-1">
+                        <span className="text-teal-600">›</span> {e}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
             <Tip type="info">
-              Gemini analizi arka planda çalışır. Büyük veri yüklemelerinde tamamlanma 1–2 dakika sürebilir. Dashboard otomatik yenilenir.
+              Cx-Ai yalnızca kendi şirketinizin verilerine erişir. Yanıtlar gerçek zamanlı veritabanı verisiyle oluşturulur — statik raporlar değil.
+            </Tip>
+          </section>
+
+          <div className="border-t border-slate-800" />
+
+          {/* ── Domain Yönetimi ── */}
+          <section id="domain-yonetimi" ref={reg("domain-yonetimi")} className="scroll-mt-4">
+            <SectionHeader
+              icon={Globe} title="Domain Yönetimi" color="bg-violet-500/15 text-violet-400 border-violet-500/25"
+              subtitle="İçe aktarma sırasında atlanacak e-posta domainlerini yönetin."
+              roles={["superadmin", "cx_manager"]}
+            />
+
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div className="space-y-4">
+                <Step n={1} title="Domain Ayarları Panelini Açın">
+                  Etkileşim Kayıtları sayfasının sağ üst köşesindeki <strong className="text-white">Domain Ayarları</strong> butonuna tıklayın. Mevcut domain sayısı rozet olarak gösterilir.
+                </Step>
+                <Step n={2} title="Domain Ekleyin">
+                  Metin kutusuna domain yazın (örn: <code className="text-violet-300 bg-violet-500/10 px-1 rounded">infoset.app</code>) ve bir açıklama girin. Enter veya <strong className="text-white">Ekle</strong> butonuna tıklayın.
+                </Step>
+                <Step n={3} title="Domain Listesini İnceleyin">
+                  <strong className="text-white">Manuel</strong> etiketi elle eklenen, <strong className="text-white">✦ Otomatik</strong> etiketi sistemin kendi tespit ettiği domainleri gösterir.
+                </Step>
+                <Step n={4} title="Domain Silin">
+                  Bir domainın üzerine geldiğinizde çöp kutusu ikonu belirir. Tıklayarak hariç tutma listesinden çıkarabilirsiniz.
+                </Step>
+              </div>
+
+              <ScreenMockup title="interactions#domains">
+                <AppLayoutMockup>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] text-white font-semibold">Domain Yönetimi</span>
+                      <span className="text-[7px] text-slate-500">3 domain aktif</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <div className="flex-1 h-5 bg-slate-800 rounded border border-slate-700 px-1.5 flex items-center">
+                        <span className="text-[7px] text-slate-600">domain.com</span>
+                      </div>
+                      <div className="px-1.5 py-0.5 bg-violet-600 rounded text-[7px] text-white">Ekle</div>
+                    </div>
+                    {[
+                      { domain: "infoset.app", badge: "Manuel", color: "text-slate-400 bg-slate-700/50" },
+                      { domain: "noreply.com", badge: "✦ Otomatik", color: "text-violet-300 bg-violet-500/10" },
+                      { domain: "billing.co", badge: "✦ Otomatik", color: "text-violet-300 bg-violet-500/10" },
+                    ].map(({ domain, badge, color }) => (
+                      <div key={domain} className="flex items-center gap-2 py-1 border-b border-slate-800">
+                        <Globe className="w-2.5 h-2.5 text-slate-500" />
+                        <span className="text-[9px] text-slate-300 flex-1 font-mono">{domain}</span>
+                        <span className={cn("text-[7px] px-1.5 py-0.5 rounded-full", color)}>{badge}</span>
+                      </div>
+                    ))}
+                  </div>
+                </AppLayoutMockup>
+              </ScreenMockup>
+            </div>
+
+            <div className="space-y-3">
+              <Tip type="info">
+                Sistem içe aktarma sırasında otomatik tespit ettiği domainleri listeye ekler. Bu sayede aynı domain'den gelen kayıtlar bir sonraki içe aktarmada direkt atlanır.
+              </Tip>
+              <Tip type="warning">
+                Bir domaini sildikten sonra, o domainden gelen e-postalar tekrar içe aktarma sürecine dahil edilir. Yanlışlıkla silinmiş domainleri tekrar ekleyin.
+              </Tip>
+            </div>
+          </section>
+
+          <div className="border-t border-slate-800" />
+
+          {/* ── Firma & Segment Kolonları ── */}
+          <section id="firma-segment" ref={reg("firma-segment")} className="scroll-mt-4">
+            <SectionHeader
+              icon={Layers} title="Firma & Segment Kolonları" color="bg-amber-500/15 text-amber-400 border-amber-500/25"
+              subtitle="Müşteriler sayfasında Firma ve Segment bilgileri artık ayrı kolonlarda görünür."
+              roles={["all"]}
+            />
+
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                  Müşteriler tablosundaki <strong className="text-white">Segment</strong> kolonu üç öncelik sırasına göre değer gösterir:
+                </p>
+                <div className="space-y-3">
+                  {[
+                    { n: 1, label: "Kullanıcı Segmenti", desc: 'Müşteriye elle atanmış segment (örn: "VIP", "Churn Risk"). "Genel" dışında bir değer varsa önceliğe sahiptir.', color: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" },
+                    { n: 2, label: "✦ AI Segment", desc: 'Etkileşim etiketleriyle segment tablosundaki source_tags örtüştüğünde Gemini\'nin önerdiği segment. ✦ rozeti ile işaretlidir.', color: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400" },
+                    { n: 3, label: "— (Boş)", desc: 'Kullanıcı segmenti "Genel" ve hiçbir etiket eşleşmesi yoksa çizgi gösterilir.', color: "bg-slate-700/30 border-slate-600/30 text-slate-400" },
+                  ].map(({ n, label, desc, color }) => (
+                    <div key={n} className={cn("rounded-xl border p-4", color)}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">{n}</span>
+                        <span className="text-sm font-semibold text-white">{label}</span>
+                      </div>
+                      <p className="text-xs leading-relaxed opacity-80">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <ScreenMockup title="customers">
+                <AppLayoutMockup activeItem="Müşteriler">
+                  <div>
+                    <div className="grid grid-cols-4 gap-1 mb-2 border-b border-slate-700 pb-1">
+                      {["Ad Soyad", "Firma", "Segment", "NPS"].map(h => (
+                        <span key={h} className="text-[7px] text-slate-500 font-semibold uppercase tracking-wide">{h}</span>
+                      ))}
+                    </div>
+                    {[
+                      { name: "Ahmet Y.", company: "Firma A", segment: "VIP", segColor: "text-emerald-400" },
+                      { name: "Zeynep K.", company: "Firma B", segment: "✦ Churn Risk", segColor: "text-indigo-300" },
+                      { name: "Can D.", company: "Startup X", segment: "—", segColor: "text-slate-600" },
+                    ].map(r => (
+                      <div key={r.name} className="grid grid-cols-4 gap-1 py-1 border-b border-slate-800/40">
+                        <span className="text-[8px] text-slate-300">{r.name}</span>
+                        <span className="text-[8px] text-slate-400">{r.company}</span>
+                        <span className={cn("text-[8px] font-medium", r.segColor)}>{r.segment}</span>
+                        <span className="text-[8px] text-indigo-400">{["+62", "+45", "-12"][["Ahmet Y.", "Zeynep K.", "Can D."].indexOf(r.name)]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </AppLayoutMockup>
+              </ScreenMockup>
+            </div>
+
+            <Tip type="info">
+              AI segment eşleştirmesi gerçek zamanlı olarak Segmentler sayfasındaki <strong className="text-white">Kaynak Etiketler</strong> ile etkileşim etiketlerinin örtüşmesine dayanır. Doğru etiketler atandığında AI segmentleri otomatik güncellenir.
             </Tip>
           </section>
 
@@ -1573,8 +1843,11 @@ export default function ManualPage() {
                 { q: "Platforma nasıl giriş yapabilirim?", a: "CX-Inn yalnızca Google OAuth ile giriş destekler. Superadmin tarafından davet edilen e-posta adresiyle Google hesabınıza giriş yapmanız gerekir. Farklı bir e-posta ile giriş yapıldığında 'cx_user' rolü atanır." },
                 { q: "Rolümü kim değiştirebilir?", a: "Yalnızca Superadmin diğer kullanıcıların rollerini değiştirebilir. Kendi rolünüzü kendiniz değiştiremezsiniz. Kullanıcı Yönetimi sayfasındaki dropdown menüden anlık değişiklik yapılabilir." },
                 { q: "Anketim neden yayınlanmıyor?", a: "CX User rolündeyseniz anketleriniz CX Manager veya Superadmin onayı olmadan yayınlanamaz. Onay Kuyruğu sayfasından durumu takip edebilirsiniz. Reddedilmişse revizyon notunu okuyun ve düzenleyerek tekrar gönderin." },
-                { q: "AI analizi ne kadar sürede tamamlanır?", a: "Tek bir etkileşim için Gemini analizi genellikle 2–5 saniye sürer. Toplu içe aktarma işlemlerinde (100+ etkileşim) bu süre 1–3 dakikaya uzayabilir. Dashboard otomatik yenilenir." },
-                { q: "CSV dosyam hangi formatta olmalı?", a: "Gerekli sütunlar: customer_id (zorunlu), channel, message (zorunlu), date (ISO format: YYYY-MM-DD), sentiment (pozitif/negatif/nötr, opsiyonel). Opsiyonel sütunlar: category, subcategory, agent_id." },
+                { q: "AI analizi ne kadar sürede tamamlanır?", a: "Toplu içe aktarma ile 100 etkileşim yaklaşık 15–20 saniyede tamamlanır. Batch analiz motoru 5 müşteriyi tek Gemini çağrısında işler ve 3 grubu paralel çalıştırır. Dashboard otomatik yenilenir." },
+                { q: "CSV dosyam hangi formatta olmalı?", a: "Standart format için sütunlar: customer_email (zorunlu), type (ticket/chat/call), subject, content, status, channel, agent_name, duration_seconds, resolution, interacted_at. Şablon indirmek için Etkileşimler sayfasındaki 'Şablon İndir' butonunu kullanın." },
+                { q: "Cx-Ai nedir, nasıl kullanılır?", a: "Cx-Ai, sağ üst köşedeki teal renk gradyanlı butona tıklayarak açılan yapay zeka sohbet panelidir. Doğal Türkçe ile 'En churn riskli müşteri kim?', 'Bu ay NPS nasıl değişti?' gibi sorular sorabilirsiniz. Yanıtlar PDF olarak dışa aktarılabilir." },
+                { q: "Domain yönetimi ne işe yarıyor?", a: "Etkileşim Kayıtları sayfasındaki Domain Ayarları panelinden hariç tutmak istediğiniz e-posta domainlerini (örn: infoset.app) ekleyebilirsiniz. Bir sonraki içe aktarmada bu domainlerden gelen etkileşimler atlanır. Sistem otomatik tespit ettiği domainleri de listeye ekler." },
+                { q: "Segment kolonunda '✦ AI' işareti ne anlama geliyor?", a: "Müşterilere Segmentler sayfasında tanımlı kaynak etiketlerle, etkileşim etiketleri örtüşünce Gemini AI'ın önerdiği segment atanır. Kullanıcı tarafından elle atanmış segment varsa o öncelik taşır; ✦ işareti AI'ın önerdiğini gösterir." },
                 { q: "Davet e-postası gelmiyor ne yapmalıyım?", a: "Önce spam/gereksiz klasörünüzü kontrol edin. Gelmiyorsa Superadmin'den Kullanıcı Yönetimi sayfasında 'Bekleyen Davetler' bölümündeki 'Tekrar Gönder' butonuna tıklamasını isteyin." },
                 { q: "API rate limit nedir?", a: "Varsayılan olarak API anahtarı başına dakikada 60, saatte 1000 istek limitine tabidir. Daha yüksek limitler için Superadmin ile iletişime geçin." },
                 { q: "PII maskeleme nasıl çalışır?", a: "Ayarlar → Güvenlik bölümünden PII maskeleme aktif edildiğinde, e-posta ve telefon gibi kişisel veriler loglarda ve AI analizi çıktılarında otomatik anonimleştirilir. Asıl veri şifreli olarak saklanmaya devam eder." },

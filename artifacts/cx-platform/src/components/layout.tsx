@@ -32,6 +32,7 @@ import {
   X,
   KeyRound,
   Tags,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/hooks/use-firebase-auth";
@@ -114,6 +115,12 @@ const NAV_SECTIONS: NavSection[] = [
         href: "/permissions",
         label: "Yetki Matrisi",
         icon: KeyRound,
+        roles: ["superadmin"],
+      },
+      {
+        href: "/tech-docs",
+        label: "Teknik Doküman",
+        icon: Code2,
         roles: ["superadmin"],
       },
     ],
