@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
   type User as FirebaseUser,
@@ -72,39 +71,12 @@ export function useFirebaseAuth(): AuthState {
   useEffect(() => {
     let cancelled = false;
 
-    // ── Redirect result promise ─────────────────────────────────────────────
-    // After signInWithRedirect the SDK needs to call getRedirectResult to
-    // "consume" the pending credential.  onAuthStateChanged fires with null
-    // BEFORE the redirect is processed, which would wrongly send the user back
-    // to the login page.  We keep a reference to this promise so the null-user
-    // branch of onAuthStateChanged can WAIT for it before clearing auth state.
-    const redirectPromise = getRedirectResult(auth)
-      .then(async (result) => {
-        if (cancelled || !result) return;
-        // Redirect completed → exchange the fresh token immediately.
-        const idToken = await result.user.getIdToken();
-        const appUser = await exchangeToken(idToken);
-        if (!cancelled) {
-          setUser(appUser);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error("[Auth] Redirect sign-in error:", err);
-      });
-
-    // ── Ongoing auth state listener ─────────────────────────────────────────
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (cancelled) return;
 
       firebaseUserRef.current = firebaseUser;
 
       if (!firebaseUser) {
-        // Wait for the redirect check to finish before deciding there is no
-        // user.  Without this await, the initial null state clears the UI
-        // before the redirect credential has been processed.
-        await redirectPromise;
-        if (cancelled) return;
         setUser(null);
         setIsLoading(false);
         return;
@@ -140,9 +112,14 @@ export function useFirebaseAuth(): AuthState {
     const provider = new GoogleAuthProvider();
     provider.addScope("email");
     provider.addScope("profile");
-    // Full-page redirect — no popup window.
-    // onAuthStateChanged fires on return and handles the token exchange.
-    await signInWithRedirect(auth, provider);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+      const appUser = await exchangeToken(idToken);
+      if (appUser) setUser(appUser);
+    } catch (err) {
+      console.error("[Auth] Popup sign-in error:", err);
+    }
   }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
