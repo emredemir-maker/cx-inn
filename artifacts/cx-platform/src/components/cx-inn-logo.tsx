@@ -48,19 +48,19 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
         </linearGradient>
       </defs>
 
-      {/* ── Left large "C" (center ≈ 22,31 · r ≈ 26) opens to the right ── */}
+      {/* ── Left large "C" — white for dark backgrounds ── */}
       <path
         d="M 38 7 A 26 26 0 1 0 38 53"
-        stroke="#3B82F6"
-        strokeWidth="7"
+        stroke="rgba(255,255,255,0.92)"
+        strokeWidth="7.5"
         strokeLinecap="round"
       />
 
-      {/* ── Right smaller loop (center ≈ 52,31 · r ≈ 15) opens to the left ── */}
+      {/* ── Right smaller loop — bright blue ── */}
       <path
         d="M 42 17 A 15 15 0 1 1 42 43"
         stroke="#60A5FA"
-        strokeWidth="6"
+        strokeWidth="6.5"
         strokeLinecap="round"
       />
 
@@ -71,7 +71,7 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
         x2="60"
         y2="14"
         stroke={`url(#${gradId})`}
-        strokeWidth="5.5"
+        strokeWidth="6"
         strokeLinecap="round"
       />
 
@@ -97,7 +97,7 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
             fontWeight="700"
             fontSize="32"
-            fill="#3B82F6"
+            fill="#60A5FA"
           >
             -Inn
           </text>
