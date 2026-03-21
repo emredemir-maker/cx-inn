@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { segmentsTable, customersTable, interactionRecordsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { segmentsTable, customersTable, interactionRecordsTable, cxAnalysesTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAuth } from "../middleware/requireRole";
 import { sanitizeError } from "../lib/sanitize-error";
