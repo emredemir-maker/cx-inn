@@ -73,11 +73,11 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* ── Two-column center area ── */}
-          <div className="flex-1 grid lg:grid-cols-2 grid-cols-1 gap-0">
+          {/* ── Three-column center area ── */}
+          <div className="flex-1 grid lg:grid-cols-[1fr_1.1fr_1fr] grid-cols-1 gap-0">
 
             {/* Left: Hero copy + metrics */}
-            <div className="flex flex-col justify-center px-12 pr-8 space-y-8">
+            <div className="flex flex-col justify-center px-10 space-y-8">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-6">
                   <Sparkles className="w-3 h-3 text-indigo-400" />
@@ -116,8 +116,28 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Center: Brand logo showcase */}
+            <div className="flex items-center justify-center border-x border-slate-800/40">
+              <div className="flex flex-col items-center gap-6 px-8">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-64 h-32 bg-indigo-500/10 blur-3xl rounded-full" />
+                  <CxInnLogo variant="full" size={76} className="relative drop-shadow-[0_0_24px_rgba(99,102,241,0.35)]" />
+                </div>
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-[10px] text-slate-500 font-medium tracking-widest uppercase">
+                    B2B Müşteri Deneyim Platformu
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-px bg-gradient-to-r from-transparent to-indigo-500/40" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+                    <div className="w-10 h-px bg-gradient-to-l from-transparent to-indigo-500/40" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Right: Login card */}
-            <div className="flex items-center justify-center px-8 pl-4">
+            <div className="flex items-center justify-center px-8">
               <div className="w-full max-w-sm">
                 <div className="rounded-2xl border border-slate-700/60 bg-slate-900/80 p-8 space-y-6 shadow-2xl">
                   <div className="text-center space-y-1.5">

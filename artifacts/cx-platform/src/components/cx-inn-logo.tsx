@@ -25,12 +25,15 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
   const uid = useId().replace(/:/g, "");
   const gradId = `arrow-${uid}`;
 
-  // Icon canvas: 72 × 62
-  // Full canvas: 172 × 62 (icon + text)
-  const W = variant === "full" ? 178 : 72;
+  // Icon canvas: 76 × 62  (4px left breathing room added so the C stroke never clips)
+  // Full canvas: 184 × 62 (icon + text, same 4px shift applied)
+  const W = variant === "full" ? 184 : 76;
   const H = 62;
   const aspect = W / H;
 
+  // All path coordinates are shifted +4 on x to match the extra left margin.
+  // Original leftmost stroke edge was at x≈8.25 (center 12, strokeWidth 7.5).
+  // With +4 shift it becomes x≈12.25, well clear of the viewport left edge.
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -51,7 +54,7 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
 
       {/* ── Left large "C" — white for dark backgrounds ── */}
       <path
-        d="M 38 7 A 26 26 0 1 0 38 53"
+        d="M 42 7 A 26 26 0 1 0 42 53"
         stroke="rgba(255,255,255,0.92)"
         strokeWidth="7.5"
         strokeLinecap="round"
@@ -59,7 +62,7 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
 
       {/* ── Right smaller loop — bright blue ── */}
       <path
-        d="M 42 17 A 15 15 0 1 1 42 43"
+        d="M 46 17 A 15 15 0 1 1 46 43"
         stroke="#60A5FA"
         strokeWidth="6.5"
         strokeLinecap="round"
@@ -67,9 +70,9 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
 
       {/* ── Teal arrow shaft ── */}
       <line
-        x1="29"
+        x1="33"
         y1="48"
-        x2="60"
+        x2="64"
         y2="14"
         stroke={`url(#${gradId})`}
         strokeWidth="6"
@@ -77,13 +80,13 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
       />
 
       {/* ── Arrow head ── */}
-      <path d="M 60 14 L 49 17 L 56 25 Z" fill="#22D3EE" />
+      <path d="M 64 14 L 53 17 L 60 25 Z" fill="#22D3EE" />
 
       {/* ── Text (full variant only) ── */}
       {variant === "full" && (
         <>
           <text
-            x="78"
+            x="82"
             y="43"
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
             fontWeight="700"
@@ -93,7 +96,7 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
             Cx
           </text>
           <text
-            x="115"
+            x="119"
             y="43"
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
             fontWeight="700"

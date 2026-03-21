@@ -265,8 +265,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside className="w-64 flex-shrink-0 border-r border-border/50 bg-card/30 backdrop-blur-xl flex flex-col z-20 relative shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
-        <div className="h-16 flex items-center px-5 border-b border-border/50">
-          <CxInnLogo variant="full" size={32} />
+        <div className="h-24 flex items-center pl-5 pr-4 border-b border-border/50">
+          <CxInnLogo variant="full" size={40} />
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
