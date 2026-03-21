@@ -1,77 +1,58 @@
 import { useId } from "react";
 
 interface CxInnLogoProps {
-  /** Height of the SVG in pixels */
   size?: number;
-  /** "icon" = symbol only, "full" = symbol + "Cx-Inn" text */
   variant?: "icon" | "full";
   className?: string;
 }
 
 /**
- * CX-Inn brand logo — faithful dark-theme SVG recreation.
+ * CX-Inn brand logo — faithful dark-theme SVG.
  *
  * Geometry derived from pixel-perfect Python/Pillow render (draw_logo.py).
- * PNG reference: cx-inn-logo-preview.png
  *
- * ── SYMBOL (viewBox 0 0 96 74) ──────────────────────────────────────────────
+ * ── SYMBOL (viewBox 0 0 102 80) ─────────────────────────────────────────────
  *
- * LEFT C  — standard C, opens RIGHT, center (38,40) r=26, gap ±30° = 300° arc
- *   Top end θ=330°: (38+26·cos330°, 40+26·sin330°) = (60.5, 27) → (61, 27)
- *   Bot end θ= 30°: (38+26·cos 30°, 40+26·sin 30°) = (60.5, 53) → (61, 53)
- *   SVG path: M 61 27 A 26 26 0 1 0 61 53   (large-arc=1, sweep=0 = CCW)
- *   Traces: upper-right → TOP → LEFT → BOTTOM → lower-right  ✓
+ * LEFT C  center(42,43) r=30  gap ±30° on right  300° CCW arc
+ *   top end θ=330° → (68,28)   bot end θ=30° → (68,58)
+ *   path: M 68 28 A 30 30 0 1 0 68 58
  *
- * RIGHT ∂ — backwards-C, opens LEFT, center (65,40) r=18, gap ±30° = 300° arc
- *   Top end θ=210°: (65+18·cos210°, 40+18·sin210°) = (49.4, 31) → (49, 31)
- *   Bot end θ=150°: (65+18·cos150°, 40+18·sin150°) = (49.4, 49) → (49, 49)
- *   SVG path: M 49 31 A 18 18 0 1 1 49 49   (large-arc=1, sweep=1 = CW)
- *   Traces: upper-left → TOP → RIGHT → BOTTOM → lower-left  ✓
+ * RIGHT ∂  center(73,43) r=18  gap ±30° on left  300° CW arc split:
+ *   navy top  210°→30°  (180° CW): M 57 34 A 18 18 0 0 1 89 52
+ *   teal bot   30°→150° (120° CW): M 89 52 A 18 18 0 0 1 57 52
  *
- * CIRCLE INTERSECTION (d=27, r1=26, r2=18):
- *   a = (676−324+729)/54 = 20.0   h = √(676−400) = 16.6
- *   x_int = 38+20 = 58            y = 40 ± 16.6 → top≈23, bot≈57
- *
- * ARROW — teal gradient (cyan→mint), tail at (55,58) head tip at (82,10)
- *   Crosses both circle intersection points → authentic interlocked look  ✓
- * ───────────────────────────────────────────────────────────────────────────
+ * ARROW tail=(57,52)  tip=(94,9)  same teal gradient as ∂ bottom
+ * ────────────────────────────────────────────────────────────────────────────
  */
 export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInnLogoProps) {
   const uid = useId().replace(/:/g, "");
-  const gradId = `cxinn-arrow-${uid}`;
+  const gTeal = `t-${uid}`;   // teal gradient id
 
-  const W = variant === "full" ? 212 : 96;
-  const H = 74;
-  const aspect = W / H;
+  const W = variant === "full" ? 208 : 102;
+  const H = 80;
 
-  // Arrow geometry — computed once, shared between shaft and head
-  const AX0 = 55, AY0 = 59;   // tail (near bottom circle intersection)
-  const AX1 = 82, AY1 = 10;   // head tip (upper-right)
+  // Arrow geometry
+  const ATX = 57, ATY = 52;   // tail = end of teal arc
+  const AHX = 94, AHY = 9;    // head tip
 
-  const dx = AX1 - AX0, dy = AY1 - AY0;
+  const dx = AHX - ATX, dy = AHY - ATY;
   const len = Math.hypot(dx, dy);
-  const ux = dx / len, uy = dy / len;   // unit along shaft
-  const px = -uy, py = ux;              // perpendicular unit
+  const ux = dx / len, uy = dy / len;
+  const px = -uy,  py = ux;
 
-  const HEAD_LEN = 9;    // arrowhead length (SVG units)
-  const HEAD_W   = 5;    // arrowhead half-width
+  const HEAD_L = 17, HEAD_W = 10;
+  const sex = AHX - ux * HEAD_L;   // shaft end x
+  const sey = AHY - uy * HEAD_L;   // shaft end y
 
-  // Shaft stops before tip so head triangle starts cleanly
-  const sx = AX1 - ux * HEAD_LEN;
-  const sy = AY1 - uy * HEAD_LEN;
-
-  // Arrowhead base corners
-  const b0x = sx + px * HEAD_W;
-  const b0y = sy + py * HEAD_W;
-  const b1x = sx - px * HEAD_W;
-  const b1y = sy - py * HEAD_W;
-
-  const headPath = `M ${AX1} ${AY1} L ${b0x.toFixed(1)} ${b0y.toFixed(1)} L ${b1x.toFixed(1)} ${b1y.toFixed(1)} Z`;
+  const b0x = +(sex + px * HEAD_W).toFixed(1);
+  const b0y = +(sey + py * HEAD_W).toFixed(1);
+  const b1x = +(sex - px * HEAD_W).toFixed(1);
+  const b1y = +(sey - py * HEAD_W).toFixed(1);
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      width={size * aspect}
+      width={size * (W / H)}
       height={size}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -80,8 +61,16 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
       aria-label="Cx-Inn"
     >
       <defs>
-        {/* Gradient direction: tail (bottom-left) → head (top-right) */}
-        <linearGradient id={gradId} x1="55" y1="59" x2="82" y2="10" gradientUnits="userSpaceOnUse">
+        {/*
+          Single gradient along the arrow direction (tail → tip).
+          Applied to both the teal arc bottom of ∂ AND the arrow shaft,
+          so the color flows continuously from dark-cyan to mint-green.
+        */}
+        <linearGradient
+          id={gTeal}
+          x1={ATX} y1={ATY} x2={AHX} y2={AHY}
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%"   stopColor="#22D3EE" />
           <stop offset="100%" stopColor="#34D399" />
         </linearGradient>
@@ -89,56 +78,64 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
 
       {/* ── Left large C — 300° CCW arc, opens RIGHT ────────────────────── */}
       <path
-        d="M 61 27 A 26 26 0 1 0 61 53"
-        stroke="rgba(255,255,255,0.92)"
-        strokeWidth="8.5"
+        d="M 68 28 A 30 30 0 1 0 68 58"
+        stroke="rgba(255,255,255,0.93)"
+        strokeWidth="9.5"
         strokeLinecap="round"
         fill="none"
       />
 
-      {/* ── Right backwards-C (∂) — 300° CW arc, opens LEFT ─────────────── */}
+      {/* ── Right ∂ navy top — 180° CW arc (upper + right side) ──────────── */}
       <path
-        d="M 49 31 A 18 18 0 1 1 49 49"
-        stroke="rgba(255,255,255,0.80)"
+        d="M 57 34 A 18 18 0 0 1 89 52"
+        stroke="rgba(255,255,255,0.82)"
         strokeWidth="7"
         strokeLinecap="round"
         fill="none"
       />
 
-      {/* ── Arrow shaft — teal gradient ───────────────────────────────────── */}
+      {/* ── Right ∂ teal bottom — 120° CW arc (blends into arrow) ────────── */}
+      <path
+        d="M 89 52 A 18 18 0 0 1 57 52"
+        stroke={`url(#${gTeal})`}
+        strokeWidth="7"
+        strokeLinecap="round"
+        fill="none"
+      />
+
+      {/* ── Arrow shaft ───────────────────────────────────────────────────── */}
       <line
-        x1={AX0} y1={AY0}
-        x2={sx.toFixed(1)} y2={sy.toFixed(1)}
-        stroke={`url(#${gradId})`}
+        x1={ATX} y1={ATY}
+        x2={sex.toFixed(1)} y2={sey.toFixed(1)}
+        stroke={`url(#${gTeal})`}
         strokeWidth="6"
         strokeLinecap="round"
       />
 
-      {/* ── Arrow head — solid mint triangle ─────────────────────────────── */}
-      <path d={headPath} fill="#34D399" />
+      {/* ── Arrow head ────────────────────────────────────────────────────── */}
+      <path
+        d={`M ${AHX} ${AHY} L ${b0x} ${b0y} L ${b1x} ${b1y} Z`}
+        fill="#34D399"
+      />
 
-      {/* ── Text (full variant only) ─────────────────────────────────────── */}
+      {/* ── Text (full variant) ───────────────────────────────────────────── */}
       {variant === "full" && (
         <>
-          {/* "Cx" — bold */}
           <text
-            x="100"
-            y="51"
+            x="106" y="53"
             fontFamily="'Segoe UI', system-ui, -apple-system, sans-serif"
             fontWeight="700"
-            fontSize="34"
+            fontSize="36"
             fill="rgba(255,255,255,0.95)"
           >
             Cx
           </text>
-          {/* "-Inn" — regular, same color but softer */}
           <text
-            x="140"
-            y="51"
+            x="148" y="53"
             fontFamily="'Segoe UI', system-ui, -apple-system, sans-serif"
             fontWeight="400"
-            fontSize="34"
-            fill="rgba(255,255,255,0.78)"
+            fontSize="36"
+            fill="rgba(255,255,255,0.80)"
           >
             -Inn
           </text>
