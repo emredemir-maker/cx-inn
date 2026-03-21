@@ -51,6 +51,16 @@ const browserRateLimit = rateLimit({
 app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// ── Prevent Firebase Hosting CDN from stripping Set-Cookie headers ────────────
+// Firebase Hosting CDN caches responses and strips Set-Cookie unless
+// Cache-Control: private is present. Without this, session cookies are never
+// delivered to the browser, causing 401 on every authenticated request.
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  next();
+});
+
 app.use("/api", browserRateLimit);
 app.use(authMiddleware);
 
