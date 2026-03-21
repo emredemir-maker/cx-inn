@@ -121,12 +121,20 @@ type MonthStat = {
 export default function Analytics() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/analytics/nps-impact"],
-    queryFn: () => fetch("/api/analytics/nps-impact").then((r) => r.json()),
+    queryFn: () =>
+      fetch("/api/analytics/nps-impact").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
   });
 
   const { data: trendData } = useQuery<{ months: MonthStat[] }>({
     queryKey: ["/api/analytics/monthly-trend"],
-    queryFn: () => fetch("/api/analytics/monthly-trend").then((r) => r.json()),
+    queryFn: () =>
+      fetch("/api/analytics/monthly-trend").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
     refetchInterval: 60000,
   });
 
@@ -145,7 +153,11 @@ export default function Analytics() {
     monthlyTrend: Array<{ month: string; mae: number; recordCount: number }>;
   }>({
     queryKey: ["/api/analytics/prediction-accuracy"],
-    queryFn: () => fetch("/api/analytics/prediction-accuracy").then((r) => r.json()),
+    queryFn: () =>
+      fetch("/api/analytics/prediction-accuracy").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
     refetchInterval: 60000,
   });
 
@@ -168,10 +180,13 @@ export default function Analytics() {
   const {
     overall, tagImpact, painImpact, channelImpact,
     sentimentDist, npsBands, csatBands, verbatimNegative, verbatimPositive,
-  } = data;
+  } = data ?? {};
 
-  const totalNps = (npsBands.promoter ?? 0) + (npsBands.passive ?? 0) + (npsBands.detractor ?? 0);
-  const totalCsat = (csatBands.satisfied ?? 0) + (csatBands.neutral ?? 0) + (csatBands.dissatisfied ?? 0);
+  const safeNps = npsBands ?? { promoter: 0, passive: 0, detractor: 0 };
+  const safeCsat = csatBands ?? { satisfied: 0, neutral: 0, dissatisfied: 0 };
+
+  const totalNps = (safeNps.promoter ?? 0) + (safeNps.passive ?? 0) + (safeNps.detractor ?? 0);
+  const totalCsat = (safeCsat.satisfied ?? 0) + (safeCsat.neutral ?? 0) + (safeCsat.dissatisfied ?? 0);
 
   return (
     <Layout>
@@ -396,7 +411,7 @@ export default function Analytics() {
               { key: "passive", label: "Passive (7-8)", color: "bg-yellow-400" },
               { key: "detractor", label: "Detractor (0-6)", color: "bg-red-400" },
             ].map(({ key, label, color }) => {
-              const count = npsBands[key] ?? 0;
+              const count = safeNps[key as keyof typeof safeNps] ?? 0;
               const pct = totalNps > 0 ? Math.round((count / totalNps) * 100) : 0;
               return (
                 <div key={key} className="flex items-center gap-3">
@@ -420,7 +435,7 @@ export default function Analytics() {
               { key: "neutral", label: "Nötr (3)", color: "bg-yellow-400" },
               { key: "dissatisfied", label: "Memnun Değil (1-2)", color: "bg-red-400" },
             ].map(({ key, label, color }) => {
-              const count = csatBands[key] ?? 0;
+              const count = safeCsat[key as keyof typeof safeCsat] ?? 0;
               const pct = totalCsat > 0 ? Math.round((count / totalCsat) * 100) : 0;
               return (
                 <div key={key} className="flex items-center gap-3">
