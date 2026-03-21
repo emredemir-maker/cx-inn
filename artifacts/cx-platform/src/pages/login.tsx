@@ -61,9 +61,9 @@ export default function LoginPage() {
 
           {/* Top bar */}
           <div className="flex items-center justify-between px-12 py-5 border-b border-slate-800/60">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1 min-w-0">
               <CxInnLogo variant="full" size={44} />
-              <span className="text-[10px] text-slate-600 font-medium tracking-widest uppercase pl-0.5">
+              <span className="text-xs text-slate-400 font-medium tracking-widest uppercase pl-0.5">
                 B2B CX Platformu
               </span>
             </div>
