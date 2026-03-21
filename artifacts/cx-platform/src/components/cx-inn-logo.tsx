@@ -3,37 +3,34 @@ import { useId } from "react";
 interface CxInnLogoProps {
   /** Height of the SVG in pixels */
   size?: number;
-  /** "icon" = symbol only (for sidebar), "full" = symbol + text (for login) */
+  /** "icon" = symbol only, "full" = symbol + text */
   variant?: "icon" | "full";
   className?: string;
 }
 
 /**
- * CX-Inn brand logo.
+ * CX-Inn brand logo — faithful dark-theme adaptation of the original.
  *
- * Shapes:
- *  - Large "C" (opens right) in primary blue  — left element
- *  - Smaller backwards "C" (opens left) in lighter blue — right loop
- *  - Teal diagonal arrow rising from the intersection
+ * Original logo analysis:
+ *  - Left large C  : opens RIGHT, dark navy — adapted to white on dark bg
+ *  - Right smaller ∂: opens LEFT (backwards C), same navy — adapted to white
+ *  - Together they form an infinity-like interlocking symbol
+ *  - Teal diagonal arrow rising from the intersection of the two shapes
+ *  - "Cx-Inn" text: single unified color
  *
- * Colors follow the app's dark-theme palette:
- *  - Primary blue  : #3B82F6
- *  - Lighter blue  : #60A5FA
- *  - Arrow gradient: #22D3EE → #34D399 (cyan → emerald)
+ * ViewBox: icon 80×62, full 196×62
+ * Left C  : center (36, 31), radius 23 — opens right  → M 36 8 A 23 23 0 1 0 36 54
+ * Right ∂ : center (56, 31), radius 16 — opens left   → M 56 15 A 16 16 0 1 1 56 47
+ * Arrow   : shaft (42, 48) → (64, 13), head at (64, 13)
  */
 export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInnLogoProps) {
   const uid = useId().replace(/:/g, "");
   const gradId = `arrow-${uid}`;
 
-  // Icon canvas: 76 × 62  (4px left breathing room added so the C stroke never clips)
-  // Full canvas: 184 × 62 (icon + text, same 4px shift applied)
-  const W = variant === "full" ? 184 : 76;
+  const W = variant === "full" ? 196 : 80;
   const H = 62;
   const aspect = W / H;
 
-  // All path coordinates are shifted +4 on x to match the extra left margin.
-  // Original leftmost stroke edge was at x≈8.25 (center 12, strokeWidth 7.5).
-  // With +4 shift it becomes x≈12.25, well clear of the viewport left edge.
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -52,56 +49,60 @@ export function CxInnLogo({ size = 36, variant = "icon", className = "" }: CxInn
         </linearGradient>
       </defs>
 
-      {/* ── Left large "C" — white for dark backgrounds ── */}
+      {/* ── Left large C — opens RIGHT (standard C shape) ── */}
+      {/* Center (36, 31), radius 23: arc from top (36,8) CCW to bottom (36,54) */}
       <path
-        d="M 42 7 A 26 26 0 1 0 42 53"
+        d="M 36 8 A 23 23 0 1 0 36 54"
         stroke="rgba(255,255,255,0.92)"
         strokeWidth="7.5"
         strokeLinecap="round"
+        fill="none"
       />
 
-      {/* ── Right smaller loop — bright blue ── */}
+      {/* ── Right smaller backwards-C — opens LEFT (∂ shape) ── */}
+      {/* Center (56, 31), radius 16: arc from top (56,15) CW to bottom (56,47) */}
       <path
-        d="M 46 17 A 15 15 0 1 1 46 43"
-        stroke="#60A5FA"
-        strokeWidth="6.5"
-        strokeLinecap="round"
-      />
-
-      {/* ── Teal arrow shaft ── */}
-      <line
-        x1="33"
-        y1="48"
-        x2="64"
-        y2="14"
-        stroke={`url(#${gradId})`}
+        d="M 56 15 A 16 16 0 1 1 56 47"
+        stroke="rgba(255,255,255,0.80)"
         strokeWidth="6"
         strokeLinecap="round"
+        fill="none"
       />
 
-      {/* ── Arrow head ── */}
-      <path d="M 64 14 L 53 17 L 60 25 Z" fill="#22D3EE" />
+      {/* ── Teal arrow shaft — rises diagonally from intersection area ── */}
+      <line
+        x1="42"
+        y1="48"
+        x2="64"
+        y2="13"
+        stroke={`url(#${gradId})`}
+        strokeWidth="5.5"
+        strokeLinecap="round"
+      />
+
+      {/* ── Arrow head (triangle at tip) ── */}
+      <path d="M 64 13 L 53 17 L 59 25 Z" fill="#22D3EE" />
 
       {/* ── Text (full variant only) ── */}
       {variant === "full" && (
         <>
           <text
-            x="82"
+            x="88"
             y="43"
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
-            fontWeight="700"
+            fontWeight="800"
             fontSize="32"
-            fill="white"
+            fill="rgba(255,255,255,0.95)"
           >
             Cx
           </text>
           <text
-            x="119"
+            x="125"
             y="43"
             fontFamily="Plus Jakarta Sans, system-ui, sans-serif"
-            fontWeight="700"
+            fontWeight="600"
             fontSize="32"
-            fill="#60A5FA"
+            fill="rgba(255,255,255,0.70)"
           >
             -Inn
           </text>
