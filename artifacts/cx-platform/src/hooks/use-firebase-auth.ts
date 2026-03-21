@@ -72,32 +72,45 @@ export function useFirebaseAuth(): AuthState {
   useEffect(() => {
     let cancelled = false;
 
-    // After a signInWithRedirect, the browser returns to this page.
-    // getRedirectResult resolves with the credential (or null if no pending
-    // redirect). onAuthStateChanged fires immediately after and handles the
-    // token exchange, so we only need to surface any redirect errors here.
-    getRedirectResult(auth).catch((err) => {
-      console.error("[Auth] Redirect sign-in error:", err);
-    });
+    // ── Redirect result promise ─────────────────────────────────────────────
+    // After signInWithRedirect the SDK needs to call getRedirectResult to
+    // "consume" the pending credential.  onAuthStateChanged fires with null
+    // BEFORE the redirect is processed, which would wrongly send the user back
+    // to the login page.  We keep a reference to this promise so the null-user
+    // branch of onAuthStateChanged can WAIT for it before clearing auth state.
+    const redirectPromise = getRedirectResult(auth)
+      .then(async (result) => {
+        if (cancelled || !result) return;
+        // Redirect completed → exchange the fresh token immediately.
+        const idToken = await result.user.getIdToken();
+        const appUser = await exchangeToken(idToken);
+        if (!cancelled) {
+          setUser(appUser);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("[Auth] Redirect sign-in error:", err);
+      });
 
-    // Listen to Firebase Auth state changes.
-    // When Firebase has a valid user but the backend session has expired
-    // (e.g. after a long idle period), silently refresh the backend session
-    // using the current Firebase ID token.
+    // ── Ongoing auth state listener ─────────────────────────────────────────
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (cancelled) return;
 
-      // Always keep the ref in sync with the latest Firebase auth state.
       firebaseUserRef.current = firebaseUser;
 
       if (!firebaseUser) {
-        // Firebase user is gone — ensure backend is also cleared
+        // Wait for the redirect check to finish before deciding there is no
+        // user.  Without this await, the initial null state clears the UI
+        // before the redirect credential has been processed.
+        await redirectPromise;
+        if (cancelled) return;
         setUser(null);
         setIsLoading(false);
         return;
       }
 
-      // Firebase user is active — check if backend session is still alive
+      // Firebase user is active — check if backend session is still alive.
       const sessionUser = await fetchCurrentUser();
       if (!cancelled && sessionUser) {
         setUser(sessionUser);
@@ -105,13 +118,11 @@ export function useFirebaseAuth(): AuthState {
         return;
       }
 
-      // Backend session expired but Firebase token is valid → silently re-login
+      // Backend session expired but Firebase token is valid → silently re-login.
       try {
         const idToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
         const refreshedUser = await exchangeToken(idToken);
-        if (!cancelled) {
-          setUser(refreshedUser);
-        }
+        if (!cancelled) setUser(refreshedUser);
       } catch {
         if (!cancelled) setUser(null);
       } finally {
