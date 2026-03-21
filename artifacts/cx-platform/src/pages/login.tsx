@@ -74,7 +74,10 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center p-6"
-      style={{ backgroundColor: "#08090b", fontFamily: "'Inter', sans-serif" }}
+      style={{
+        background: "radial-gradient(ellipse 80% 60% at 60% 0%, rgba(99,102,241,0.12) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 10% 100%, rgba(52,211,153,0.07) 0%, transparent 55%), #08090b",
+        fontFamily: "'Inter', sans-serif",
+      }}
     >
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
@@ -161,7 +164,7 @@ export default function LoginPage() {
 
               {/* Logo */}
               <div className="flex flex-col items-center gap-2">
-                <CxInnLogoImg height={56} />
+                <CxInnLogoImg height={90} />
                 <span className="text-[10px] font-bold tracking-[0.2em] text-gray-500 uppercase">
                   B2B Müşteri Deneyimi Platformu
                 </span>
