@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { BarChart2, Users, MessageSquareQuote, Sparkles, ShieldCheck, Zap, Loader2 } from "lucide-react";
 import { useAppAuth } from "@/context/auth-context";
-import { CxInnLogo } from "@/components/cx-inn-logo";
+
+const CxInnLogoImg = ({ height, className = "" }: { height: number; className?: string }) => (
+  <img src="/cx-inn-logo.png" height={height} alt="Cx-Inn"
+    className={className} style={{ height, width: "auto" }} />
+);
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -62,7 +66,7 @@ export default function LoginPage() {
           {/* Top bar */}
           <div className="flex items-center justify-between px-12 py-5 border-b border-slate-800/60">
             <div className="flex flex-col gap-1 min-w-0">
-              <CxInnLogo variant="full" size={44} />
+              <CxInnLogoImg height={44} />
               <span className="text-xs text-slate-400 font-medium tracking-widest uppercase pl-0.5">
                 B2B CX Platformu
               </span>
@@ -121,7 +125,7 @@ export default function LoginPage() {
               <div className="flex flex-col items-center gap-6 px-8">
                 <div className="relative flex items-center justify-center">
                   <div className="absolute w-64 h-32 bg-indigo-500/10 blur-3xl rounded-full" />
-                  <CxInnLogo variant="full" size={76} className="relative drop-shadow-[0_0_24px_rgba(99,102,241,0.35)]" />
+                  <CxInnLogoImg height={76} className="relative drop-shadow-[0_0_24px_rgba(99,102,241,0.35)]" />
                 </div>
                 <div className="flex flex-col items-center gap-3">
                   <p className="text-[10px] text-slate-500 font-medium tracking-widest uppercase">
