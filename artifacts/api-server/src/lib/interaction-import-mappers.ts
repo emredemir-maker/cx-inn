@@ -36,7 +36,13 @@ export function isExcel(file: Express.Multer.File): boolean {
 export function isInfosetFormat(records: Record<string, string>[]): boolean {
   if (!records.length) return false;
   const firstKeys = Object.keys(records[0]);
-  return firstKeys.includes("Kişi E-postası") || firstKeys.includes("Konu");
+  // "Konu" alone is too generic (it just means "Subject").
+  // Require at least one column that is uniquely Infoset-specific.
+  return (
+    firstKeys.includes("Kişi E-postası") ||
+    firstKeys.includes("Atananlar") ||
+    firstKeys.some((k) => k.startsWith("İnfoset"))
+  );
 }
 
 // ── Mapped row shape ──────────────────────────────────────────────────────────
@@ -109,8 +115,16 @@ export function mapInfosetRow(row: Record<string, string>): MappedRow {
   if (parts.length && content) content = content + "\n\n[" + parts.join(" | ") + "]";
   else if (parts.length) content = "[" + parts.join(" | ") + "]";
 
+  // Try several variants for the email column (Infoset export may differ by version)
+  const emailRaw = getField(
+    row,
+    "Kişi E-postası", "Kişi E-Posta", "Kişi Email",
+    "E-posta", "E-Posta", "eposta", "email", "Email",
+    "Müşteri E-posta", "Müşteri E-postası",
+  );
+
   return {
-    email: get("Kişi E-postası").toLowerCase(),
+    email: emailRaw.toLowerCase(),
     name: get("Kişi") || get("Kişi E-postası"),
     company: get("Şirket"),
     subject: get("Konu"),
@@ -127,7 +141,11 @@ export function mapInfosetRow(row: Record<string, string>): MappedRow {
 
 // ── Standard format mapper ────────────────────────────────────────────────────
 export function mapStandardRow(row: Record<string, string>): MappedRow {
-  const email = getField(row, "customer_email", "email", "müşteri_email").toLowerCase();
+  const email = getField(
+    row,
+    "customer_email", "email", "Email", "müşteri_email",
+    "e-posta", "E-posta", "E-Posta", "eposta", "Müşteri E-posta",
+  ).toLowerCase();
   const rawType = getField(row, "type", "tür").toLowerCase();
   const type = (["ticket", "chat", "call"].includes(rawType) ? rawType : "ticket") as MappedRow["type"];
   const subject = getField(row, "subject", "konu");

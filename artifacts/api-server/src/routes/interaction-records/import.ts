@@ -86,6 +86,7 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
   if (!records.length) return res.status(400).json({ error: "Dosya boş veya başlık satırı eksik." });
 
   const isInfoset = isInfosetFormat(records);
+  const detectedColumns = Object.keys(records[0] ?? {}).join(", ");
 
   // Build email→id lookup
   const allCustomers = await db
@@ -107,7 +108,14 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
     const mapped = isInfoset ? mapInfosetRow(row) : mapStandardRow(row);
     const { email, name, company, subject, content, type, status, channel, agentName, durationSeconds, resolution, interactedAt } = mapped;
 
-    if (!email) { errors.push(`Satır ${rowNum}: E-posta adresi boş.`); skipped++; continue; }
+    if (!email) {
+      // Only add column hint in the first email error to avoid flooding the output
+      const colHint = errors.filter((e) => e.includes("E-posta adresi boş")).length === 0
+        ? ` (Tespit edilen sütunlar: ${detectedColumns})`
+        : "";
+      errors.push(`Satır ${rowNum}: E-posta adresi boş.${colHint}`);
+      skipped++; continue;
+    }
     if (!subject) { errors.push(`Satır ${rowNum}: Konu boş.`); skipped++; continue; }
 
     if (!isInfoset) {
