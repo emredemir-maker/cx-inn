@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { BarChart2, Users, MessageSquareQuote, Sparkles, ShieldCheck, Zap, Loader2 } from "lucide-react";
 import { useAppAuth } from "@/context/auth-context";
+import { CxInnLogo } from "@/components/cx-inn-logo";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -60,11 +61,9 @@ export default function LoginPage() {
 
           {/* Top bar */}
           <div className="flex items-center justify-between px-12 py-6 border-b border-slate-800/60">
-            <div>
-              <span className="text-xl font-bold text-white">
-                CX<span className="text-indigo-400">-Inn</span>
-              </span>
-              <span className="ml-3 text-xs text-slate-600 font-medium tracking-wide">
+            <div className="flex items-center gap-3">
+              <CxInnLogo variant="full" size={32} />
+              <span className="text-xs text-slate-500 font-medium tracking-wide">
                 B2B CX Platformu
               </span>
             </div>
