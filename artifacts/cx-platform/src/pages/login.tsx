@@ -4,7 +4,7 @@ import { useAppAuth } from "@/context/auth-context";
 
 const CxInnLogoImg = ({ height, className = "" }: { height: number; className?: string }) => (
   <img src="/cx-inn-logo.png" height={height} alt="Cx-Inn"
-    className={className} style={{ height, width: "auto" }} />
+    className={className} style={{ height, width: "auto", flexShrink: 0 }} />
 );
 
 const GoogleIcon = () => (
@@ -65,8 +65,8 @@ export default function LoginPage() {
 
           {/* Top bar */}
           <div className="flex items-center justify-between px-12 py-5 border-b border-slate-800/60">
-            <div className="flex flex-col gap-1 min-w-0">
-              <CxInnLogoImg height={44} />
+            <div className="flex flex-col gap-1 shrink-0">
+              <CxInnLogoImg height={52} />
               <span className="text-xs text-slate-400 font-medium tracking-widest uppercase pl-0.5">
                 B2B CX Platformu
               </span>
