@@ -53,7 +53,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (isBullet) {
       return (
         <div key={i} className="flex items-start gap-2 py-0.5">
-          <span className="text-indigo-400 mt-0.5 flex-shrink-0 text-xs">▸</span>
+          <span className="text-teal-400 mt-0.5 flex-shrink-0 text-xs">▸</span>
           <span>{parts}</span>
         </div>
       );
@@ -281,14 +281,14 @@ export function NlpQueryPanel() {
         onClick={() => setOpen(true)}
         className={cn(
           "fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl",
-          "bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm",
-          "shadow-[0_8px_32px_rgba(99,102,241,0.45)] hover:shadow-[0_8px_40px_rgba(99,102,241,0.65)]",
+          "bg-gradient-to-r from-indigo-500 via-teal-500 to-emerald-500 text-white font-semibold text-sm",
+          "shadow-[0_8px_32px_rgba(20,184,166,0.35)] hover:shadow-[0_8px_40px_rgba(20,184,166,0.55)]",
           "transition-all duration-200 hover:scale-105 active:scale-95",
           open && "opacity-0 pointer-events-none",
         )}
       >
         <Sparkles className="h-4 w-4" />
-        AI Sorgu
+        Cx-Ai
       </button>
 
       {/* Backdrop */}
@@ -311,11 +311,11 @@ export function NlpQueryPanel() {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 via-teal-500 to-emerald-500 flex items-center justify-center shadow-lg">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">CX AI Asistanı</p>
+              <p className="text-sm font-bold text-foreground">Cx-Ai Asistanı</p>
               <p className="text-[10px] text-muted-foreground">
                 {convId
                   ? `Konuşma #${convId} · Bağlamı hatırlıyor`
@@ -329,7 +329,7 @@ export function NlpQueryPanel() {
               <button
                 onClick={() => exportToPDF(messages)}
                 title="PDF olarak indir"
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-teal-400 hover:bg-teal-500/10 transition-colors"
               >
                 <FileText className="h-4 w-4" />
               </button>
@@ -366,9 +366,9 @@ export function NlpQueryPanel() {
                   <button
                     key={text}
                     onClick={() => handleSubmit(text)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-foreground/80 hover:text-foreground border border-border/40 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all group"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-foreground/80 hover:text-foreground border border-border/40 hover:border-teal-500/40 hover:bg-teal-500/5 transition-all group"
                   >
-                    <Icon className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0" />
+                    <Icon className="h-3.5 w-3.5 text-teal-400 flex-shrink-0" />
                     <span className="flex-1">{text}</span>
                     <ChevronRight className="h-3 w-3 text-muted-foreground/50 group-hover:text-indigo-400 transition-colors" />
                   </button>
