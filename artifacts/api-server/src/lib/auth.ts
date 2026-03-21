@@ -4,7 +4,10 @@ import { db, sessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { UserRole } from "@workspace/db";
 
-export const SESSION_COOKIE = "sid";
+// Firebase Hosting only forwards cookies named "__session" to Cloud Run backends.
+// All other cookie names are stripped before the request reaches the API server.
+// See: https://firebase.google.com/docs/hosting/manage-cache#using_cookies
+export const SESSION_COOKIE = "__session";
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 
 export interface SessionUser {
