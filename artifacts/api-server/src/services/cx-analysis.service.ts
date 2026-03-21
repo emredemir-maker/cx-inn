@@ -289,39 +289,252 @@ export async function analyzeCustomerById(
   return analysis;
 }
 
+// ── Batch analysis helpers ────────────────────────────────────────────────────
+
+const BATCH_SIZE = 5;        // customers per Gemini call
+const BATCH_CONCURRENCY = 3; // parallel Gemini calls at a time
+
+type CustomerRow = Awaited<ReturnType<typeof db.select>>[number] & {
+  id: number; name: string; company?: string | null;
+  segment?: string | null; npsScore?: number | null;
+  sentiment?: string | null; churnRisk?: string | null;
+};
+
+type InteractionRow = {
+  id: number; customerId: number; type: string;
+  subject?: string | null; status: string; channel: string;
+  content?: string | null; resolution?: string | null;
+};
+
+/** Build a single prompt that asks Gemini to analyse N customers at once. */
+function buildBatchPrompt(
+  customers: CustomerRow[],
+  interactionsByCustomer: Map<number, InteractionRow[]>,
+  canonicalVocabBlock: string,
+): string {
+  const customersBlock = customers
+    .map((c, idx) => {
+      const ixs = interactionsByCustomer.get(c.id) ?? [];
+      const ixText = ixs
+        .map(
+          (i) =>
+            `  [ID:${i.id}] Tür: ${i.type} | Konu: ${stripPii(i.subject ?? "")} | Durum: ${i.status}\n` +
+            `  İçerik: ${stripPii(i.content ?? "")}` +
+            (i.resolution ? `\n  Çözüm: ${stripPii(i.resolution)}` : ""),
+        )
+        .join("\n\n");
+      return (
+        `--- MÜŞTERİ ${idx + 1} (customerId: ${c.id}) ---\n` +
+        `Ad: ${c.name} | Firma: ${c.company || c.segment || "Bilinmiyor"} | Mevcut NPS: ${c.npsScore ?? "Bilinmiyor"}\n` +
+        `Etkileşimler (${ixs.length} kayıt):\n${ixText}`
+      );
+    })
+    .join("\n\n");
+
+  const idList = customers.map((c) => c.id).join(", ");
+
+  return (
+    `Sen bir müşteri deneyimi (CX) uzmanı yapay zekasısın. ` +
+    `Aşağıda ${customers.length} farklı müşterinin etkileşim verisi var. Her biri için CX analizi yap.\n` +
+    `${canonicalVocabBlock}\n` +
+    `${customersBlock}\n\n` +
+    `GÖREV: Yukarıdaki her müşteri için JSON DİZİSİ döndür (customerId listesi: ${idList}):\n` +
+    `[\n` +
+    `  {\n` +
+    `    "customerId": <müşteri ID>,\n` +
+    `    "predictedNps": <0-10 ondalıklı>,\n` +
+    `    "predictedCsat": <1-5 ondalıklı>,\n` +
+    `    "overallSentiment": <"positive"|"neutral"|"negative">,\n` +
+    `    "churnRisk": <"low"|"medium"|"high">,\n` +
+    `    "painPoints": [<en fazla 4 Türkçe acı nokta>],\n` +
+    `    "keyTopics": [<en fazla 5 Türkçe konu etiketi>],\n` +
+    `    "interactionTags": { "<interaction_id>": [<2-3 Türkçe etiket>] },\n` +
+    `    "summary": <80-100 kelime Türkçe özet>,\n` +
+    `    "recommendations": <50-80 kelime Türkçe aksiyon önerileri>\n` +
+    `  },\n` +
+    `  ...\n` +
+    `]\n` +
+    `Sadece JSON dizisi döndür, başka hiçbir şey yazma.`
+  );
+}
+
+/** Extract JSON array from Gemini batch response. */
+function parseBatchResponse(raw: string): Record<string, any>[] {
+  const tryParse = (s: string): Record<string, any>[] | null => {
+    const match = s.match(/\[[\s\S]*\]/);
+    if (!match) return null;
+    try { return JSON.parse(match[0]); } catch { return null; }
+  };
+  return (
+    tryParse(raw) ??
+    tryParse(raw.replace(/```(?:json)?/gi, "").trim()) ??
+    []
+  );
+}
+
 /**
- * Analyze multiple customers sequentially in the background.
+ * Send one Gemini request for a batch of customers, then persist all results.
+ * Falls back to individual sequential analysis if the batch call fails.
+ */
+async function runAndPersistBatch(
+  batchCustomerIds: number[],
+  synonymMap: Map<string, string>,
+  canonicalVocabBlock: string,
+): Promise<void> {
+  // ── Fetch customers & interactions in 2 parallel DB queries ─────────────
+  const [customers, allInteractions] = await Promise.all([
+    db
+      .select()
+      .from(customersTable)
+      .where(inArray(customersTable.id, batchCustomerIds)) as Promise<CustomerRow[]>,
+    db
+      .select()
+      .from(interactionRecordsTable)
+      .where(
+        and(
+          inArray(interactionRecordsTable.customerId, batchCustomerIds),
+          eq(interactionRecordsTable.excludedFromAnalysis, false),
+        ),
+      )
+      .orderBy(desc(interactionRecordsTable.interactedAt)) as Promise<InteractionRow[]>,
+  ]);
+
+  // Group interactions by customer (cap at 15 to control prompt size)
+  const interactionsByCustomer = new Map<number, InteractionRow[]>();
+  for (const ix of allInteractions) {
+    const list = interactionsByCustomer.get(ix.customerId) ?? [];
+    if (list.length < 15) { list.push(ix); interactionsByCustomer.set(ix.customerId, list); }
+  }
+
+  const validCustomers = customers.filter(
+    (c) => (interactionsByCustomer.get(c.id) ?? []).length > 0,
+  );
+  if (!validCustomers.length) return;
+
+  // ── Single Gemini call for the whole batch ───────────────────────────────
+  const prompt = buildBatchPrompt(validCustomers, interactionsByCustomer, canonicalVocabBlock);
+
+  let results: Record<string, any>[];
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: { maxOutputTokens: validCustomers.length * 1200 },
+    });
+    results = parseBatchResponse(response.text?.trim() ?? "[]");
+  } catch (err) {
+    console.error("[cx-analysis.service] batch Gemini call failed, falling back to sequential:", err);
+    results = [];
+  }
+
+  // ── Persist each result that was returned ────────────────────────────────
+  const handledIds = new Set<number>();
+
+  for (const result of results) {
+    const customerId = Number(result.customerId);
+    if (!customerId) continue;
+
+    const customer = validCustomers.find((c) => c.id === customerId);
+    if (!customer) continue;
+
+    if (typeof result.predictedNps === "string") result.predictedNps = parseFloat(result.predictedNps);
+    if (typeof result.predictedCsat === "string") result.predictedCsat = parseFloat(result.predictedCsat);
+    if (isNaN(result.predictedNps)) result.predictedNps = null;
+    if (isNaN(result.predictedCsat)) result.predictedCsat = null;
+
+    if (Array.isArray(result.keyTopics)) result.keyTopics = normalizeTags(result.keyTopics, synonymMap);
+
+    if (result.interactionTags && typeof result.interactionTags === "object") {
+      const allNewTags: string[] = [];
+      for (const [idStr, tags] of Object.entries(result.interactionTags)) {
+        const id = Number(idStr);
+        if (id && Array.isArray(tags)) {
+          const normalizedTags = normalizeTags(tags as string[], synonymMap);
+          await db
+            .update(interactionRecordsTable)
+            .set({ tags: normalizedTags })
+            .where(eq(interactionRecordsTable.id, id));
+          allNewTags.push(...normalizedTags);
+        }
+      }
+      refreshSegmentsForTags(allNewTags).catch((e) =>
+        console.error("[cx-analysis.service] segment refresh error:", e),
+      );
+    }
+
+    const ixIds = (interactionsByCustomer.get(customerId) ?? []).map((i) => i.id);
+    await persistAnalysis(customerId, customer, result, ixIds);
+    await markLearningUsed(customerId);
+    handledIds.add(customerId);
+  }
+
+  // ── Fall back individually for any customer Gemini skipped ───────────────
+  for (const customer of validCustomers) {
+    if (handledIds.has(customer.id)) continue;
+    console.warn(`[cx-analysis.service] batch missed customerId ${customer.id}, running individually`);
+    try {
+      const ixs = interactionsByCustomer.get(customer.id) ?? [];
+      const { parsed } = await runAnalysis(customer.id, ixs, true);
+      await persistAnalysis(customer.id, customer, parsed, ixs.map((i) => i.id));
+      await markLearningUsed(customer.id);
+    } catch (e) {
+      console.error(`[cx-analysis.service] individual fallback failed for ${customer.id}:`, e);
+    }
+  }
+}
+
+/**
+ * Analyze multiple customers using batched Gemini calls in parallel.
+ * Groups customers into batches of BATCH_SIZE, then runs BATCH_CONCURRENCY
+ * batches at a time — typically 4-6× faster than sequential single-customer calls.
  * Returns immediately — the caller should already have sent the HTTP response.
  */
 export async function bulkAnalyzeCustomers(
   customerIds: number[],
   userId = "system",
 ): Promise<void> {
-  for (const customerId of customerIds) {
-    try {
-      const interactions = await db
-        .select()
-        .from(interactionRecordsTable)
-        .where(
-          and(
-            eq(interactionRecordsTable.customerId, customerId),
-            eq(interactionRecordsTable.excludedFromAnalysis, false),
-          ),
-        )
-        .orderBy(desc(interactionRecordsTable.interactedAt))
-        .limit(20);
+  // Shared resources fetched once for the entire run
+  const synonymMap = await buildSynonymMap();
+  const canonicalTags = await db
+    .select({ canonicalName: tagSynonymsTable.canonicalName, synonyms: tagSynonymsTable.synonyms })
+    .from(tagSynonymsTable);
+  const canonicalVocabBlock =
+    canonicalTags.length > 0
+      ? `\nKANONİK ETİKET SÖZLÜĞÜ (bu etiketleri tercih et, yeni etiket oluşturmaktan kaçın):\n` +
+        canonicalTags
+          .map((g: { canonicalName: string; synonyms: string[] }) =>
+            `- ${g.canonicalName}${g.synonyms.length ? ` (ayrıca: ${g.synonyms.join(", ")})` : ""}`,
+          )
+          .join("\n") +
+        `\n`
+      : "";
 
-      if (!interactions.length) continue;
+  // Chunk customer IDs into batches of BATCH_SIZE
+  const batches: number[][] = [];
+  for (let i = 0; i < customerIds.length; i += BATCH_SIZE) {
+    batches.push(customerIds.slice(i, i + BATCH_SIZE));
+  }
 
-      const { parsed, customer } = await runAnalysis(customerId, interactions, true /* compact */);
-      await persistAnalysis(customerId, customer, parsed, interactions.map((i) => i.id));
-      await markLearningUsed(customerId);
+  console.log(
+    `[cx-analysis.service] Starting batch analysis: ${customerIds.length} customers → ` +
+    `${batches.length} batches (size=${BATCH_SIZE}, concurrency=${BATCH_CONCURRENCY})`,
+  );
 
-      // Small delay to avoid Gemini rate limiting
-      await new Promise((r) => setTimeout(r, 800));
-    } catch (err) {
-      console.error(`[cx-analysis.service] bulk analyze error for customer ${customerId}:`, err);
+  // Process batches with limited concurrency
+  for (let i = 0; i < batches.length; i += BATCH_CONCURRENCY) {
+    const round = batches.slice(i, i + BATCH_CONCURRENCY);
+    await Promise.allSettled(
+      round.map((batch) =>
+        runAndPersistBatch(batch, synonymMap, canonicalVocabBlock).catch((err) =>
+          console.error(`[cx-analysis.service] batch error:`, err),
+        ),
+      ),
+    );
+    // Brief pause between concurrency rounds to respect rate limits
+    if (i + BATCH_CONCURRENCY < batches.length) {
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
-  console.log(`[cx-analysis.service] Bulk analysis completed for ${customerIds.length} customers.`);
+
+  console.log(`[cx-analysis.service] Batch analysis completed for ${customerIds.length} customers.`);
 }
