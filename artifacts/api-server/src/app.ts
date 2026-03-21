@@ -4,6 +4,18 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
+import { pool } from "@workspace/db";
+
+// ── Runtime migration: ensure excluded_domains table exists ───────────────────
+pool.query(`
+  CREATE TABLE IF NOT EXISTS excluded_domains (
+    id         SERIAL PRIMARY KEY,
+    domain     TEXT NOT NULL UNIQUE,
+    reason     TEXT,
+    source     TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','auto')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`).catch((err: Error) => console.error("[startup] excluded_domains migration error:", err));
 
 const app: Express = express();
 

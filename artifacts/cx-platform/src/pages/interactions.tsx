@@ -8,7 +8,7 @@ import {
   Clock, User, CheckCircle, Upload, Download, FileText,
   AlertCircle, RefreshCw, Loader2, XCircle, Tag, Sparkles,
   ShieldCheck, ShieldOff, EyeOff, Eye, ScanSearch, Building2,
-  ChevronDown, Search, X,
+  ChevronDown, Search, X, Globe, Settings2,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,20 @@ const TYPE_ICONS = { ticket: Ticket, chat: MessageSquare, call: Phone };
 const STATUS_VARIANTS: Record<string, any> = { open: "warning", resolved: "success", escalated: "destructive", closed: "outline" };
 const STATUS_LABELS: Record<string, string> = { open: "Açık", resolved: "Çözüldü", escalated: "Yükseltildi", closed: "Kapalı" };
 
+// ── Excluded domains hook ─────────────────────────────────────────────────────
+type ExcludedDomain = { id: number; domain: string; reason: string | null; source: "manual" | "auto"; createdAt: string };
+
+function useExcludedDomains() {
+  return useQuery<ExcludedDomain[]>({
+    queryKey: ["excluded-domains"],
+    queryFn: async () => {
+      const res = await fetch("/api/excluded-domains");
+      if (!res.ok) throw new Error("Domain listesi alınamadı");
+      return res.json();
+    },
+  });
+}
+
 function useInteractionRecords(customerId?: number) {
   return useQuery<InteractionRecord[]>({
     queryKey: ["interaction-records", customerId],
@@ -92,6 +106,40 @@ export default function Interactions() {
   // Relevance classification state
   const [classifying, setClassifying] = useState(false);
   const [classifyResult, setClassifyResult] = useState<{ classified: number; customerRequests: number; nonRelevant: number } | null>(null);
+
+  // Domain management state
+  const [domainModalOpen, setDomainModalOpen] = useState(false);
+  const [newDomain, setNewDomain] = useState("");
+  const [newDomainReason, setNewDomainReason] = useState("");
+  const { data: excludedDomains = [], refetch: refetchDomains } = useExcludedDomains();
+
+  const addDomainMutation = useMutation({
+    mutationFn: async ({ domain, reason }: { domain: string; reason: string }) => {
+      const res = await fetch("/api/excluded-domains", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, reason: reason || undefined, source: "manual" }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchDomains();
+      setNewDomain("");
+      setNewDomainReason("");
+      toast({ title: "Domain eklendi", description: `${newDomain} hariç tutma listesine eklendi.` });
+    },
+    onError: (e: Error) => toast({ title: "Hata", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteDomainMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/excluded-domains/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Silinemedi");
+    },
+    onSuccess: () => { refetchDomains(); toast({ title: "Domain silindi" }); },
+    onError: (e: Error) => toast({ title: "Hata", description: e.message, variant: "destructive" }),
+  });
 
   // Exclusion reason modal state (single record)
   const [exclusionModalRec, setExclusionModalRec] = useState<InteractionRecord | null>(null);
@@ -387,6 +435,18 @@ export default function Interactions() {
             {classifying ? "Sınıflandırılıyor..." : "AI Sınıflandır"}
             {unclassifiedCount > 0 && !classifying && (
               <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-warning/20 text-warning rounded-full">{unclassifiedCount}</span>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            className="border border-border hover:border-teal-500/40 hover:text-teal-400"
+            onClick={() => setDomainModalOpen(true)}
+            title="Hariç tutulacak e-posta domainlerini yönet"
+          >
+            <Globe className="h-4 w-4" />
+            Domain Ayarları
+            {excludedDomains.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-teal-500/15 text-teal-400 rounded-full">{excludedDomains.length}</span>
             )}
           </Button>
           <Button variant="primary" onClick={() => setModalOpen(true)} className="shadow-[0_0_20px_rgba(99,102,241,0.25)]">
@@ -1090,6 +1150,91 @@ export default function Interactions() {
               </Button>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* ── DOMAIN AYARLARI MODAL ────────────────────────────────────────────── */}
+      <Modal isOpen={domainModalOpen} onClose={() => setDomainModalOpen(false)} title="Domain Hariç Tutma Ayarları">
+        <div className="space-y-5">
+          {/* Info */}
+          <div className="bg-teal-500/10 border border-teal-500/20 rounded-xl p-4 flex gap-3">
+            <Globe className="h-5 w-5 text-teal-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground mb-1">Domain bazlı hariç tutma</p>
+              <p>Bu listedeki domainlerden gelen e-postalar, toplu yükleme sırasında otomatik olarak analizden hariç tutulur. Sistem tarafından tespit edilen domainler <span className="text-teal-400 font-medium">Otomatik</span> olarak işaretlenir.</p>
+            </div>
+          </div>
+
+          {/* Add domain form */}
+          <div className="space-y-3 p-4 bg-white/[0.02] border border-border/50 rounded-xl">
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-teal-400" /> Yeni Domain Ekle
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="örn: infoset.app"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && newDomain.trim()) addDomainMutation.mutate({ domain: newDomain.trim(), reason: newDomainReason.trim() }); }}
+                className="flex-1 font-mono text-sm"
+              />
+              <Button
+                variant="primary"
+                onClick={() => addDomainMutation.mutate({ domain: newDomain.trim(), reason: newDomainReason.trim() })}
+                disabled={!newDomain.trim() || addDomainMutation.isPending}
+                isLoading={addDomainMutation.isPending}
+              >
+                Ekle
+              </Button>
+            </div>
+            <Input
+              placeholder="Hariç tutma sebebi (isteğe bağlı)"
+              value={newDomainReason}
+              onChange={(e) => setNewDomainReason(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+
+          {/* Domain list */}
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {excludedDomains.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Henüz hariç tutulmuş domain yok.</p>
+            ) : (
+              excludedDomains.map((d) => (
+                <div key={d.id} className="flex items-center gap-3 p-3 bg-white/[0.02] border border-border/40 rounded-xl group">
+                  <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-semibold text-foreground">{d.domain}</span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                        d.source === "auto"
+                          ? "bg-teal-500/15 text-teal-400"
+                          : "bg-primary/15 text-primary"
+                      )}>
+                        {d.source === "auto" ? "✦ Otomatik" : "Manuel"}
+                      </span>
+                    </div>
+                    {d.reason && (
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{d.reason}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => deleteDomainMutation.mutate(d.id)}
+                    disabled={deleteDomainMutation.isPending}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Listeden kaldır"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-border/50">
+            <Button variant="ghost" onClick={() => setDomainModalOpen(false)}>Kapat</Button>
+          </div>
         </div>
       </Modal>
     </Layout>

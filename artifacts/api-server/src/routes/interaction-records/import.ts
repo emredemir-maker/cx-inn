@@ -9,6 +9,7 @@ import { requireAuth } from "../../middleware/requireRole";
 import { sanitizeError } from "../../lib/sanitize-error";
 import { writeAuditLog, getUserId } from "../../lib/audit";
 import { isExcel, isInfosetFormat, mapInfosetRow, mapStandardRow, classifyIrrelevant } from "../../lib/interaction-import-mappers";
+import { excludedDomainsTable } from "@workspace/db/schema";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -88,6 +89,11 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
   const isInfoset = isInfosetFormat(records);
   const detectedColumns = Object.keys(records[0] ?? {}).join(", ");
 
+  // Fetch excluded domains once for the whole import
+  const excludedDomainRows = await db.select({ domain: excludedDomainsTable.domain }).from(excludedDomainsTable);
+  const excludedDomainSet = new Set(excludedDomainRows.map((r) => r.domain.toLowerCase()));
+  const newlyDetectedDomains = new Set<string>(); // domains auto-detected during this import
+
   // Build email→id lookup
   const allCustomers = await db
     .select({ id: customersTable.id, email: customersTable.email })
@@ -164,8 +170,28 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
       skipped++; continue;
     }
 
-    // Auto-classify irrelevant records (no-reply, notifications, marketing, etc.)
-    const { excluded: isIrrelevant, reason: exclusionReason } = classifyIrrelevant(email, subject, content);
+    // ── Domain-based exclusion (checked before pattern classifier) ────────────
+    const emailDomain = email.includes("@") ? email.split("@")[1].toLowerCase() : "";
+    const isDomainExcluded = emailDomain && excludedDomainSet.has(emailDomain);
+
+    // ── Pattern-based classifier (no-reply, notifications, marketing, etc.) ──
+    const { excluded: isPatternExcluded, reason: patternReason } = classifyIrrelevant(email, subject, content);
+
+    // If pattern classifier fires, auto-register the domain for future imports
+    if (isPatternExcluded && emailDomain && !excludedDomainSet.has(emailDomain) && !newlyDetectedDomains.has(emailDomain)) {
+      newlyDetectedDomains.add(emailDomain);
+      excludedDomainSet.add(emailDomain); // update in-memory set for this run
+      // Persist asynchronously — don't block the import loop
+      db.insert(excludedDomainsTable)
+        .values({ domain: emailDomain, reason: patternReason ?? "Otomatik tespit", source: "auto" })
+        .onConflictDoNothing()
+        .catch((e: Error) => console.error("[import] auto-domain persist error:", e));
+    }
+
+    const isIrrelevant = isDomainExcluded || isPatternExcluded;
+    const exclusionReason = isDomainExcluded
+      ? `Domain hariç tutma listesi: ${emailDomain}`
+      : (patternReason ?? null);
 
     try {
       await db.insert(interactionRecordsTable).values({
