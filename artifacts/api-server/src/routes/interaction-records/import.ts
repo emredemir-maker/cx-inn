@@ -8,7 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth } from "../../middleware/requireRole";
 import { sanitizeError } from "../../lib/sanitize-error";
 import { writeAuditLog, getUserId } from "../../lib/audit";
-import { isExcel, isInfosetFormat, mapInfosetRow, mapStandardRow } from "../../lib/interaction-import-mappers";
+import { isExcel, isInfosetFormat, mapInfosetRow, mapStandardRow, classifyIrrelevant } from "../../lib/interaction-import-mappers";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -98,6 +98,7 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
   let imported = 0;
   let skipped = 0;
   let customersCreated = 0;
+  let autoExcluded = 0;
   const errors: string[] = [];
   const importedCustomerIds = new Set<number>();
 
@@ -163,6 +164,9 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
       skipped++; continue;
     }
 
+    // Auto-classify irrelevant records (no-reply, notifications, marketing, etc.)
+    const { excluded: isIrrelevant, reason: exclusionReason } = classifyIrrelevant(email, subject, content);
+
     try {
       await db.insert(interactionRecordsTable).values({
         customerId,
@@ -175,9 +179,11 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
         durationSeconds,
         resolution,
         interactedAt,
+        excludedFromAnalysis: isIrrelevant,
       });
       importedCustomerIds.add(customerId);
       imported++;
+      if (isIrrelevant) autoExcluded++;
     } catch (e: any) {
       errors.push(`Satır ${rowNum}: DB hatası — ${e.message}`);
       skipped++;
@@ -189,13 +195,14 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
     "interaction_records",
     null,
     getUserId(req.user),
-    `Toplu etkileşim içe aktarma: ${imported} kayıt eklendi, ${skipped} atlandı, ${customersCreated} yeni müşteri oluşturuldu. Dosya: ${req.file.originalname}`,
+    `Toplu etkileşim içe aktarma: ${imported} kayıt eklendi (${autoExcluded} otomatik hariç tutuldu), ${skipped} atlandı, ${customersCreated} yeni müşteri oluşturuldu. Dosya: ${req.file.originalname}`,
   );
 
   res.json({
     total: records.length,
     imported,
     skipped,
+    autoExcluded,
     customersCreated,
     importedCustomerIds: [...importedCustomerIds],
     errors: errors.slice(0, 30),

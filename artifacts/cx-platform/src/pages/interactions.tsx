@@ -47,7 +47,7 @@ const EXCLUSION_PRESETS = [
   "Diğer (aşağıya açıklayın)",
 ];
 
-type BulkResult = { total: number; imported: number; skipped: number; customersCreated: number; importedCustomerIds: number[]; errors: string[] };
+type BulkResult = { total: number; imported: number; skipped: number; autoExcluded: number; customersCreated: number; importedCustomerIds: number[]; errors: string[] };
 
 const TYPE_LABELS = { ticket: "Destek Talebi", chat: "Canlı Sohbet", call: "Çağrı Kaydı" };
 const TYPE_ICONS = { ticket: Ticket, chat: MessageSquare, call: Phone };
@@ -1010,6 +1010,13 @@ export default function Interactions() {
                   <p className={cn("text-2xl font-bold", bulkResult.skipped > 0 ? "text-warning" : "text-foreground")}>{bulkResult.skipped}</p>
                   <p className={cn("text-xs mt-0.5", bulkResult.skipped > 0 ? "text-warning/70" : "text-muted-foreground")}>Atlandı</p>
                 </div>
+                {(bulkResult.autoExcluded ?? 0) > 0 && (
+                  <div className="bg-slate-500/5 border border-slate-500/20 rounded-xl p-3 text-center col-span-2">
+                    <p className="text-2xl font-bold text-slate-400">{bulkResult.autoExcluded}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Otomatik Hariç Tutuldu</p>
+                    <p className="text-[10px] text-slate-600 mt-0.5">No-reply, bildirim, pazarlama vb. — analize dahil edilmeyecek</p>
+                  </div>
+                )}
               </div>
               {bulkResult.errors.length > 0 && (
                 <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 max-h-40 overflow-y-auto">

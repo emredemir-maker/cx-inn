@@ -139,6 +139,117 @@ export function mapInfosetRow(row: Record<string, string>): MappedRow {
   };
 }
 
+// ── Irrelevant-record classifier ──────────────────────────────────────────────
+
+/**
+ * Rule-based (zero-LLM) classifier for automated / system / marketing records.
+ * Returns `{ excluded: true, reason }` when the interaction is clearly not a
+ * genuine customer enquiry and should be flagged as excluded_from_analysis.
+ *
+ * Conservative approach — only flags records where at least one clear signal is
+ * present.  False negatives (missing an automated mail) are far less harmful
+ * than false positives (silently hiding a real complaint).
+ */
+
+// e-mail address patterns that indicate automated senders
+const NOREPLY_EMAIL_RE = /^(no.?reply|do.?not.?reply|bildirim|notification|notifications?|fatura|invoice|billing|newsletter|kampanya|campaign|system|automated|auto|robot|mailer|bounce|postmaster|noreply\+)@/i;
+
+// Subject-line patterns that strongly indicate non-human, automated messages
+const AUTOMATED_SUBJECT_PATTERNS: RegExp[] = [
+  // Billing / invoicing
+  /fatura(n[ıi]z?)?\s*(hazır|gönderildi|alındı|oluşturuldu|bildirimi?)/i,
+  /ödeme\s*(alındı|onaylandı|bildirimi?|makbuzu)/i,
+  /invoice\s*(sent|received|ready|generated)/i,
+  /receipt\s*(for|of)\s+your/i,
+
+  // OTP / verification / password
+  /doğrulama\s*(kod|link|maili?)/i,
+  /verification\s*(code|link|email)/i,
+  /\botp\b/i,
+  /tek\s*kullanımlık\s*şifre/i,
+  /şifre\s*(sıfırlama|yenileme|değiştirme)/i,
+  /password\s*reset/i,
+  /hesap\s*(doğrulama|onaylama|aktivasyon)/i,
+  /account\s*(verif|activat|confirm)/i,
+
+  // Auto-reply / out-of-office
+  /otomatik\s*(yanıt|cevap|mesaj)/i,
+  /auto.?reply/i,
+  /out\s*of\s*office/i,
+  /ofis\s*dışı/i,
+  /tatilde(yim)?/i,
+
+  // Marketing / newsletter (one-way broadcast)
+  /haber\s*bülteni/i,
+  /\bnewsletter\b/i,
+  /haftalık\s*(özet|bülten|rapor)/i,
+  /aylık\s*(özet|bülten|rapor)/i,
+  /özel\s*teklif(imiz)?/i,
+  /indirim\s*(fırsat|kampanya)/i,
+  /\bunsubscribe\b/i,
+
+  // System / app notifications
+  /uygulama\s*(güncellem|bildirimi?)/i,
+  /sistem\s*(bildirimi?|güncelleme|bakım)/i,
+  /planlı\s*(bakım|kesinti)/i,
+  /scheduled\s*maintenance/i,
+  /\b(log|oturum)\s*açıldı/i,
+  /yeni\s*(cihaz|giriş)\s*(tespit|algılan)/i,
+  /login\s*(from|attempt|alert)/i,
+];
+
+// Phrases inside the body that indicate automated / no-reply messages
+const AUTOMATED_BODY_PHRASES: string[] = [
+  "bu e-postayı yanıtlamayınız",
+  "bu mesajı yanıtlamayın",
+  "bu otomatik olarak gönderilmiştir",
+  "bu bir otomatik mesajdır",
+  "otomatik bilgilendirme mesajıdır",
+  "please do not reply to this email",
+  "do not reply to this email",
+  "this is an automated message",
+  "this email was sent automatically",
+  "you are receiving this email because",
+  "bu e-posta otomatik",
+  "yanıt vermeyin",
+  "noreply@",
+  "no-reply@",
+  "donotreply@",
+];
+
+export interface IrrelevantClassification {
+  excluded: boolean;
+  reason?: string;
+}
+
+export function classifyIrrelevant(
+  email: string,
+  subject: string,
+  content: string,
+): IrrelevantClassification {
+  // 1. Sender address is a known automated pattern
+  if (email && NOREPLY_EMAIL_RE.test(email.trim())) {
+    return { excluded: true, reason: `no-reply gönderen adresi (${email})` };
+  }
+
+  // 2. Subject matches a known automated pattern
+  for (const re of AUTOMATED_SUBJECT_PATTERNS) {
+    if (re.test(subject)) {
+      return { excluded: true, reason: `otomatik konu kalıbı: "${subject}"` };
+    }
+  }
+
+  // 3. Body contains a known automated phrase
+  const bodyLower = (content + " " + subject).toLowerCase();
+  for (const phrase of AUTOMATED_BODY_PHRASES) {
+    if (bodyLower.includes(phrase)) {
+      return { excluded: true, reason: `otomatik içerik ifadesi: "${phrase}"` };
+    }
+  }
+
+  return { excluded: false };
+}
+
 // ── Standard format mapper ────────────────────────────────────────────────────
 export function mapStandardRow(row: Record<string, string>): MappedRow {
   const email = getField(
