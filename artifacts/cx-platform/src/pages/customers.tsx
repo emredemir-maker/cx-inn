@@ -268,7 +268,8 @@ export default function Customers() {
                   </span>
                 </button>
               </th>
-              <th className="p-4 text-sm font-semibold text-muted-foreground">Firma / Segment</th>
+              <th className="p-4 text-sm font-semibold text-muted-foreground">Firma</th>
+              <th className="p-4 text-sm font-semibold text-muted-foreground">Segment</th>
               <th className="p-4 text-center">
                 <button onClick={() => toggleSort("nps")} className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group mx-auto">
                   NPS
@@ -304,15 +305,27 @@ export default function Customers() {
                     </div>
                   </div>
                 </td>
+                {/* Firma */}
                 <td className="p-4">
-                  <div className="flex flex-col gap-1">
-                    {customer.company
-                      ? <span className="text-sm font-medium text-foreground">{customer.company}</span>
-                      : <span className="text-sm text-muted-foreground/40">—</span>}
-                    {customer.segment && customer.segment !== "Genel" && (
-                      <StatusBadge status={customer.segment} variant="outline" />
-                    )}
-                  </div>
+                  {customer.company
+                    ? <span className="text-sm font-medium text-foreground">{customer.company}</span>
+                    : <span className="text-sm text-muted-foreground/40">—</span>}
+                </td>
+                {/* Segment — user-assigned > AI-matched > none */}
+                <td className="p-4">
+                  {(() => {
+                    const userSeg = customer.segment && customer.segment !== "Genel" && customer.segment !== customer.company
+                      ? customer.segment : null;
+                    const aiSeg = (customer as any).aiSegment as string | null;
+                    if (userSeg) return <StatusBadge status={userSeg} variant="outline" />;
+                    if (aiSeg) return (
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={aiSeg} variant="outline" />
+                        <span title="AI tarafından eşleştirildi" className="text-[10px] text-teal-500/70">✦ AI</span>
+                      </div>
+                    );
+                    return <span className="text-sm text-muted-foreground/40">—</span>;
+                  })()}
                 </td>
                 <td className="p-4 text-center font-mono font-bold text-primary">{customer.npsScore || "—"}</td>
                 <td className="p-4">

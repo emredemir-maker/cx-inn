@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { customersTable, interactionsTable } from "@workspace/db";
+import { customersTable, interactionsTable, segmentsTable, interactionRecordsTable } from "@workspace/db";
 import { eq, sql, isNotNull, and } from "drizzle-orm";
 import { GetCustomerParams } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireRole";
@@ -10,13 +10,56 @@ const router: IRouter = Router();
 
 router.get("/customers", requireAuth, async (_req, res) => {
   try {
-    const customers = await db.select().from(customersTable)
-      .where(eq(customersTable.isExcluded, false))
-      .orderBy(customersTable.name);
-    res.json(customers.map(c => ({
-      ...c,
-      lastInteraction: c.lastInteraction.toISOString(),
-      createdAt: c.createdAt.toISOString(),
+    // Fetch customers + their best-matching AI segment in one query via LATERAL join
+    const rows = await db.execute<{
+      id: number; name: string; email: string; company: string | null;
+      segment: string; nps_score: number | null; sentiment: string;
+      churn_risk: string; last_interaction: string; created_at: string;
+      is_excluded: boolean; ai_segment: string | null;
+    }>(sql`
+      SELECT
+        c.id, c.name, c.email, c.company, c.segment,
+        c.nps_score, c.sentiment, c.churn_risk,
+        c.last_interaction, c.created_at, c.is_excluded,
+        matched.name AS ai_segment
+      FROM customers c
+      LEFT JOIN LATERAL (
+        SELECT s.name
+        FROM segments s
+        WHERE s.source_tags IS NOT NULL
+          AND array_length(s.source_tags, 1) > 0
+          AND EXISTS (
+            SELECT 1 FROM interaction_records ir
+            WHERE ir.customer_id = c.id
+              AND ir.tags IS NOT NULL
+              AND ir.tags && s.source_tags
+              AND ir.excluded_from_analysis = false
+          )
+        ORDER BY (
+          SELECT COUNT(*) FROM interaction_records ir
+          WHERE ir.customer_id = c.id
+            AND ir.tags IS NOT NULL
+            AND ir.tags && s.source_tags
+        ) DESC
+        LIMIT 1
+      ) matched ON true
+      WHERE c.is_excluded = false
+      ORDER BY c.name
+    `);
+
+    res.json(rows.rows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      company: c.company,
+      segment: c.segment,
+      aiSegment: c.ai_segment ?? null,
+      npsScore: c.nps_score,
+      sentiment: c.sentiment,
+      churnRisk: c.churn_risk,
+      lastInteraction: new Date(c.last_interaction).toISOString(),
+      createdAt: new Date(c.created_at).toISOString(),
+      isExcluded: c.is_excluded,
     })));
   } catch (err) {
     res.status(500).json({ error: sanitizeError(err) });

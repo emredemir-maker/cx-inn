@@ -138,7 +138,7 @@ router.post("/interaction-records/bulk", requireAuth, upload.single("file"), asy
               name: name.trim(),
               email,
               company: company ? company.trim() : null,
-              segment: company ? company.trim().substring(0, 50) : "Genel",
+              segment: "Genel", // segment is set by AI analysis or user, not by import
             })
             .returning({ id: customersTable.id });
           customerId = newCustomer.id;
