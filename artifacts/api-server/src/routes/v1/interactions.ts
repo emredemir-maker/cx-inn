@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, interactionsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -34,8 +34,13 @@ function validateInteraction(data: any): { ok: true; value: any } | { ok: false;
   };
 }
 
-async function upsertCustomer(email: string, name?: string, company?: string) {
-  const [existing] = await db.select().from(customersTable).where(eq(customersTable.email, email)).limit(1);
+async function upsertCustomer(tenantId: string, email: string, name?: string, company?: string) {
+  // Look up by (tenant_id, email) so each tenant has isolated customer records
+  const [existing] = await db
+    .select()
+    .from(customersTable)
+    .where(and(eq(customersTable.tenantId, tenantId), eq(customersTable.email, email)))
+    .limit(1);
   if (existing) return existing;
   const [created] = await db.insert(customersTable).values({
     name: name ?? email.split("@")[0],
@@ -44,30 +49,36 @@ async function upsertCustomer(email: string, name?: string, company?: string) {
     segment: "Genel",
     sentiment: "neutral",
     churnRisk: "low",
+    tenantId,
   }).returning();
   return created;
 }
 
-async function insertInteraction(customerId: number, data: ReturnType<typeof validateInteraction> extends { value: infer V } ? V : never) {
+async function insertInteraction(tenantId: string, customerId: number, data: ReturnType<typeof validateInteraction> extends { value: infer V } ? V : never) {
   const [interaction] = await db.insert(interactionsTable).values({
     customerId,
     channel: data.channel,
     event: data.event,
     sentiment: data.sentiment ?? "neutral",
     score: data.score ?? null,
+    tenantId,
   }).returning();
   return interaction;
 }
 
 // POST /api/v1/interactions — single interaction
 router.post("/", async (req, res) => {
+  const tenantId = (req as any).tenantId as string | undefined;
+  if (!tenantId) {
+    return res.status(401).json({ error: "API anahtarı bir tenant ile ilişkilendirilmemiş." });
+  }
   const validated = validateInteraction(req.body);
   if (!validated.ok) {
     return res.status(400).json({ error: "Geçersiz veri.", details: validated.error });
   }
   try {
-    const customer = await upsertCustomer(validated.value.customerEmail, validated.value.customerName, validated.value.customerCompany);
-    const interaction = await insertInteraction(customer.id, validated.value);
+    const customer = await upsertCustomer(tenantId, validated.value.customerEmail, validated.value.customerName, validated.value.customerCompany);
+    const interaction = await insertInteraction(tenantId, customer.id, validated.value);
     res.status(201).json({ ok: true, customerId: customer.id, interactionId: interaction.id });
   } catch (err) {
     console.error("[v1/interactions POST]", err);
@@ -77,6 +88,10 @@ router.post("/", async (req, res) => {
 
 // POST /api/v1/interactions/batch — up to 500 interactions
 router.post("/batch", async (req, res) => {
+  const tenantId = (req as any).tenantId as string | undefined;
+  if (!tenantId) {
+    return res.status(401).json({ error: "API anahtarı bir tenant ile ilişkilendirilmemiş." });
+  }
   const items = req.body?.interactions;
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "'interactions' dizisi zorunlu." });
@@ -93,8 +108,8 @@ router.post("/batch", async (req, res) => {
       continue;
     }
     try {
-      const customer = await upsertCustomer(validated.value.customerEmail, validated.value.customerName, validated.value.customerCompany);
-      const interaction = await insertInteraction(customer.id, validated.value);
+      const customer = await upsertCustomer(tenantId, validated.value.customerEmail, validated.value.customerName, validated.value.customerCompany);
+      const interaction = await insertInteraction(tenantId, customer.id, validated.value);
       results.push({ index: i, ok: true, customerId: customer.id, interactionId: interaction.id });
     } catch (err) {
       console.error(`[v1/interactions batch] index ${i}:`, err);

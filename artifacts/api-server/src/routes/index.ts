@@ -30,6 +30,7 @@ import permissionsRouter from "./permissions";
 import tagTaxonomyRouter from "./tag-taxonomy";
 import adminTestDataRouter from "./admin-test-data";
 import excludedDomainsRouter from "./excluded-domains";
+import platformRouter from "./platform";
 import v1Router from "./v1/index";
 
 const router: IRouter = Router();
@@ -67,6 +68,7 @@ router.use(permissionsRouter);
 router.use(tagTaxonomyRouter);
 router.use(adminTestDataRouter);
 router.use(excludedDomainsRouter);
+router.use(platformRouter);
 router.use(v1Router);
 
 export default router;

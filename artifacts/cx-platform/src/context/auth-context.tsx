@@ -1,12 +1,21 @@
 import { createContext, useContext } from "react";
 import { useRolePreview } from "./role-preview-context";
-import type { AppUser } from "@/hooks/use-firebase-auth";
+import type { AppUser, TenantInfo, TenantRole } from "@/hooks/use-firebase-auth";
 
 export interface AuthContextValue {
   user: AppUser | null;
   isAuthenticated: boolean;
+  /** All tenants the user has access to */
+  tenants: TenantInfo[];
+  /** Currently active tenant ID (null if not yet selected) */
+  currentTenantId: string | null;
+  /** User's role within the active tenant */
+  currentTenantRole: TenantRole | null;
+  /** True when user belongs to >1 tenant and must choose */
+  requiresTenantPicker: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  switchTenant: (tenantId: string) => Promise<boolean>;
   refreshSession: () => Promise<boolean>;
   getIdToken: () => Promise<string | null>;
 }
@@ -14,8 +23,13 @@ export interface AuthContextValue {
 export const AuthContext = createContext<AuthContextValue>({
   user: null,
   isAuthenticated: false,
+  tenants: [],
+  currentTenantId: null,
+  currentTenantRole: null,
+  requiresTenantPicker: false,
   login: async () => {},
   logout: async () => {},
+  switchTenant: async () => false,
   refreshSession: async () => false,
   getIdToken: async () => null,
 });

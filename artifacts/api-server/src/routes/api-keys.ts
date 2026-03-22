@@ -2,8 +2,10 @@ import { Router } from "express";
 import { randomBytes, createHash } from "crypto";
 import { db } from "@workspace/db";
 import { apiKeysTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
-import { requireRole } from "../middleware/requireRole";
+import { eq, and } from "drizzle-orm";
+
+const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
+import { requireTenantRole } from "../middleware/requireRole";
 import { sanitizeError } from "../lib/sanitize-error";
 
 const router = Router();
@@ -19,9 +21,10 @@ function generateKey() {
   return { raw, prefix, hash };
 }
 
-// GET /api/settings/api-keys
-router.get("/settings/api-keys", requireRole("superadmin"), async (_req, res) => {
+// GET /api/settings/api-keys — tenant-scoped
+router.get("/settings/api-keys", requireTenantRole("tenant_admin"), async (req, res) => {
   try {
+    const tenantId = req.tenantId ?? DEFAULT_TENANT_ID;
     const keys = await db
       .select({
         id: apiKeysTable.id,
@@ -32,6 +35,7 @@ router.get("/settings/api-keys", requireRole("superadmin"), async (_req, res) =>
         lastUsedAt: apiKeysTable.lastUsedAt,
       })
       .from(apiKeysTable)
+      .where(eq(apiKeysTable.tenantId, tenantId))
       .orderBy(apiKeysTable.createdAt);
     res.json(keys);
   } catch (err) {
@@ -39,16 +43,18 @@ router.get("/settings/api-keys", requireRole("superadmin"), async (_req, res) =>
   }
 });
 
-// POST /api/settings/api-keys
-router.post("/settings/api-keys", requireRole("superadmin"), async (req, res) => {
+// POST /api/settings/api-keys — tenant-scoped
+router.post("/settings/api-keys", requireTenantRole("tenant_admin"), async (req, res) => {
   try {
     const { name } = req.body as { name: string };
     if (!name?.trim()) return res.status(400).json({ error: "Ad zorunlu." });
+    const tenantId = req.tenantId ?? DEFAULT_TENANT_ID;
     const { raw, prefix, hash } = generateKey();
     const [created] = await db.insert(apiKeysTable).values({
       name: name.trim(),
       keyHash: hash,
       keyPrefix: prefix,
+      tenantId,
     }).returning();
     // Return full key ONCE — never stored in plain text
     res.json({ ...created, fullKey: raw });
@@ -57,24 +63,36 @@ router.post("/settings/api-keys", requireRole("superadmin"), async (req, res) =>
   }
 });
 
-// DELETE /api/settings/api-keys/:id
-router.delete("/settings/api-keys/:id", requireRole("superadmin"), async (req, res) => {
+// DELETE /api/settings/api-keys/:id — tenant-scoped
+router.delete("/settings/api-keys/:id", requireTenantRole("tenant_admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    await db.delete(apiKeysTable).where(eq(apiKeysTable.id, id));
+    const tenantId = req.tenantId ?? DEFAULT_TENANT_ID;
+    await db
+      .delete(apiKeysTable)
+      .where(and(eq(apiKeysTable.id, id), eq(apiKeysTable.tenantId, tenantId)));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
-// PATCH /api/settings/api-keys/:id/toggle
-router.patch("/settings/api-keys/:id/toggle", requireRole("superadmin"), async (req, res) => {
+// PATCH /api/settings/api-keys/:id/toggle — tenant-scoped
+router.patch("/settings/api-keys/:id/toggle", requireTenantRole("tenant_admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const [key] = await db.select().from(apiKeysTable).where(eq(apiKeysTable.id, id)).limit(1);
+    const tenantId = req.tenantId ?? DEFAULT_TENANT_ID;
+    const [key] = await db
+      .select()
+      .from(apiKeysTable)
+      .where(and(eq(apiKeysTable.id, id), eq(apiKeysTable.tenantId, tenantId)))
+      .limit(1);
     if (!key) return res.status(404).json({ error: "Bulunamadı." });
-    const [updated] = await db.update(apiKeysTable).set({ isActive: !key.isActive }).where(eq(apiKeysTable.id, id)).returning();
+    const [updated] = await db
+      .update(apiKeysTable)
+      .set({ isActive: !key.isActive })
+      .where(eq(apiKeysTable.id, id))
+      .returning();
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: sanitizeError(err) });

@@ -21,5 +21,7 @@ export async function apiKeyAuth(req: Request, res: Response, next: NextFunction
   await db.update(apiKeysTable).set({ lastUsedAt: new Date() }).where(eq(apiKeysTable.id, key.id));
   (req as any).apiKeyId = key.id;
   (req as any).apiKeyName = key.name;
+  // Stamp tenantId from the API key so all v1 routes are automatically tenant-scoped
+  (req as any).tenantId = key.tenantId;
   next();
 }

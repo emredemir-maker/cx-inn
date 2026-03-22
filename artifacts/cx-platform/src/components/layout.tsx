@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { NlpQueryPanel } from "./nlp-query";
 import { useAppAuth } from "@/context/auth-context";
 import { useRolePreview } from "@/context/role-preview-context";
+import type { TenantInfo } from "@/hooks/use-firebase-auth";
 // PNG logo asset — transparent bg, scales cleanly
 const CxInnLogoFull = ({ height, className = "" }: { height: number; className?: string }) => (
   <img src="/cx-inn-logo.png" height={height} alt="Cx-Inn"
@@ -33,15 +34,21 @@ import {
   KeyRound,
   Tags,
   Code2,
+  ChevronDown,
+  Check,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/hooks/use-firebase-auth";
+import type { UserRole, TenantRole } from "@/hooks/use-firebase-auth";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  /** Filter by global user role (users.role) */
   roles?: UserRole[];
+  /** Filter by tenant role (tenant_memberships.role) — if set, user must have this tenant role */
+  tenantRoles?: TenantRole[];
   badge?: string;
 }
 
@@ -103,6 +110,18 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // Visible only to tenant_admin (company admins who are NOT platform superadmin)
+    label: "Firma Yönetimi",
+    items: [
+      {
+        href: "/user-management",
+        label: "Kullanıcı Yönetimi",
+        icon: UserCog,
+        tenantRoles: ["tenant_admin"],
+      },
+    ],
+  },
+  {
     label: "Süper Admin",
     items: [
       {
@@ -118,6 +137,12 @@ const NAV_SECTIONS: NavSection[] = [
         roles: ["superadmin"],
       },
       {
+        href: "/platform-tenants",
+        label: "Platform Yönetimi",
+        icon: Building2,
+        roles: ["superadmin"],
+      },
+      {
         href: "/tech-docs",
         label: "Teknik Doküman",
         icon: Code2,
@@ -126,6 +151,119 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
 ];
+
+// ── Tenant Switcher ────────────────────────────────────────────────────────────
+function TenantSwitcher() {
+  const { tenants, currentTenantId, switchTenant } = useAppAuth();
+  const [open, setOpen] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const current = tenants.find((t) => t.id === currentTenantId);
+  if (!current) return null;
+
+  // Single-tenant users: show badge only, no dropdown
+  if (tenants.length <= 1) {
+    return (
+      <div
+        className="mx-3 mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-border/30"
+        title={current.name}
+      >
+        <div
+          className="h-5 w-5 rounded-md flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold"
+          style={{ background: current.primaryColor }}
+        >
+          {current.name.slice(0, 1).toUpperCase()}
+        </div>
+        <span className="text-xs font-semibold text-foreground truncate flex-1">
+          {current.name}
+        </span>
+      </div>
+    );
+  }
+
+  // Multi-tenant users: dropdown switcher
+  async function handleSwitch(tenantId: string) {
+    if (tenantId === currentTenantId) { setOpen(false); return; }
+    setSwitching(tenantId);
+    await switchTenant(tenantId);
+    setSwitching(null);
+    setOpen(false);
+    // Reload to flush cached data
+    window.location.reload();
+  }
+
+  return (
+    <div ref={ref} className="relative mx-3 mb-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 rounded-xl border transition-all",
+          open
+            ? "bg-primary/10 border-primary/30"
+            : "bg-white/5 border-border/30 hover:border-border/60",
+        )}
+      >
+        <div
+          className="h-5 w-5 rounded-md flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold"
+          style={{ background: current.primaryColor }}
+        >
+          {current.name.slice(0, 1).toUpperCase()}
+        </div>
+        <span className="text-xs font-semibold text-foreground truncate flex-1 text-left">
+          {current.name}
+        </span>
+        <ArrowLeftRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border">
+            Hesap Değiştir
+          </div>
+          {tenants.map((tenant) => {
+            const isActive = tenant.id === currentTenantId;
+            const isLoading = switching === tenant.id;
+            return (
+              <button
+                key={tenant.id}
+                onClick={() => handleSwitch(tenant.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-white/5",
+                  isActive && "bg-primary/10",
+                )}
+              >
+                <div
+                  className="h-6 w-6 rounded-md flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold"
+                  style={{ background: tenant.primaryColor }}
+                >
+                  {tenant.name.slice(0, 1).toUpperCase()}
+                </div>
+                <span className="flex-1 text-left text-xs font-medium text-foreground truncate">
+                  {tenant.name}
+                </span>
+                {isLoading && (
+                  <div className="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                )}
+                {isActive && !isLoading && (
+                  <Check className="h-3 w-3 text-primary flex-shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PREVIEW_OPTIONS: { role: UserRole; label: string; icon: string }[] = [
   { role: "cx_manager", label: "CX Manager Görünümü", icon: "🛡️" },
@@ -268,9 +406,10 @@ function UserSection() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user, isPreviewMode } = useAppAuth();
+  const { user, isPreviewMode, currentTenantRole } = useAppAuth();
   const { previewRole, setPreviewRole } = useRolePreview();
   const userRole = user?.role as UserRole | undefined;
+  const tenantRole = currentTenantRole as TenantRole | undefined;
 
   return (
     <div className="flex h-screen bg-background">
@@ -280,11 +419,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <CxInnLogoFull height={82} />
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+        {/* Active tenant indicator / switcher */}
+        <div className="pt-3">
+          <TenantSwitcher />
+        </div>
+
+        <nav className="flex-1 overflow-y-auto py-2 px-3 space-y-5">
           {NAV_SECTIONS.map((section) => {
-            const visibleItems = section.items.filter(
-              (item) => !item.roles || (userRole && item.roles.includes(userRole)),
-            );
+            const visibleItems = section.items.filter((item) => {
+              // Global role filter
+              if (item.roles && (!userRole || !item.roles.includes(userRole))) {
+                return false;
+              }
+              // Tenant role filter — if specified, user must have that tenant role
+              // (superadmin always passes)
+              if (item.tenantRoles) {
+                if (userRole === "superadmin") return false; // superadmin sees the Süper Admin section instead
+                if (!tenantRole || !item.tenantRoles.includes(tenantRole)) return false;
+              }
+              return true;
+            });
             if (visibleItems.length === 0) return null;
 
             return (

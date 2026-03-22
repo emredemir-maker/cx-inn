@@ -25,10 +25,12 @@ import UserManagementPage from "./pages/user-management";
 import ApprovalsPage from "./pages/approvals";
 import ManualPage from "./pages/manual";
 import TechDocsPage from "./pages/tech-docs";
+import PlatformTenantsPage from "./pages/platform-tenants";
 import PermissionsPage from "./pages/permissions";
 import TagTaxonomyPage from "./pages/tag-taxonomy";
 import LoginPage from "./pages/login";
 import NotFound from "./pages/not-found";
+import { TenantPicker } from "./components/tenant-picker";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,6 +61,7 @@ function Router() {
       <Route path="/approvals" component={ApprovalsPage} />
       <Route path="/manual" component={ManualPage} />
       <Route path="/tech-docs" component={TechDocsPage} />
+      <Route path="/platform-tenants" component={PlatformTenantsPage} />
       <Route path="/permissions" component={PermissionsPage} />
       <Route path="/tag-taxonomy" component={TagTaxonomyPage} />
       <Route component={NotFound} />
@@ -89,8 +92,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       value={{
         user: auth.user,
         isAuthenticated: auth.isAuthenticated,
+        tenants: auth.tenants,
+        currentTenantId: auth.currentTenantId,
+        currentTenantRole: auth.currentTenantRole,
+        requiresTenantPicker: auth.requiresTenantPicker,
         login: auth.login,
         logout: auth.logout,
+        switchTenant: auth.switchTenant,
         refreshSession: auth.refreshSession,
         getIdToken: auth.getIdToken,
       }}
@@ -99,7 +107,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         <LoginPage />
       ) : (
         <PermissionsProvider>
-          {children}
+          {auth.requiresTenantPicker && (
+            <TenantPicker
+              tenants={auth.tenants}
+              onSelect={auth.switchTenant}
+            />
+          )}
+          {!auth.requiresTenantPicker && children}
         </PermissionsProvider>
       )}
     </AuthContext.Provider>

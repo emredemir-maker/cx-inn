@@ -24,6 +24,10 @@ declare global {
     interface Request {
       isAuthenticated(): this is AuthedRequest;
       user?: User | undefined;
+      /** Active tenant UUID for this session (null = not selected yet) */
+      tenantId?: string | null;
+      /** User's role within the active tenant */
+      tenantRole?: string | null;
     }
     export interface AuthedRequest {
       user: User;
@@ -53,6 +57,8 @@ export async function authMiddleware(
         .where(eq(usersTable.id, sessionUser.id));
       sessionUser.role = (dbUser?.role ?? "cx_user") as UserRole;
       req.user = sessionUser;
+      req.tenantId = session.tenantId ?? null;
+      req.tenantRole = session.tenantRole ?? null;
       next();
       return;
     }

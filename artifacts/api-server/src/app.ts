@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { authMiddleware } from "./middlewares/authMiddleware";
+import { tenantContextMiddleware } from "./middleware/tenantContext";
 import router from "./routes";
 import { pool } from "@workspace/db";
 
@@ -128,6 +129,51 @@ import { pool } from "@workspace/db";
     `);
 
     console.log("[startup] ✓ Faz 1 multi-tenancy migration complete");
+
+    // ── Faz 2: token/expiresAt columns removed from invitations (none added) ─
+    // Backfill invitations.tenant_id for legacy invitations without one
+    await client.query(`
+      UPDATE invitations
+      SET tenant_id = '00000000-0000-4000-8000-000000000001'::uuid
+      WHERE tenant_id IS NULL
+    `);
+
+    console.log("[startup] ✓ Faz 2 migration complete");
+
+    // ── Faz 3: company_settings tenant_id ────────────────────────────────────
+    await client.query(`
+      ALTER TABLE company_settings
+      ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id)
+    `);
+    await client.query(`
+      UPDATE company_settings
+      SET tenant_id = '00000000-0000-4000-8000-000000000001'::uuid
+      WHERE tenant_id IS NULL
+    `);
+
+    console.log("[startup] ✓ Faz 3 migration complete");
+
+    // ── Faz 4: Tenant-isolated V1 API ─────────────────────────────────────────
+    // The old customers.email UNIQUE constraint prevents two tenants from sharing
+    // the same customer email. Replace it with a composite (tenant_id, email) unique
+    // index so each tenant has its own isolated customer namespace.
+    await client.query(`
+      DO $$ BEGIN
+        -- Drop the old single-column unique constraint if it still exists
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'customers_email_unique' AND conrelid = 'customers'::regclass
+        ) THEN
+          ALTER TABLE customers DROP CONSTRAINT customers_email_unique;
+        END IF;
+      END $$
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS customers_tenant_email_unique
+      ON customers (tenant_id, email)
+    `);
+
+    console.log("[startup] ✓ Faz 4 migration complete");
   } catch (err) {
     console.error("[startup] Migration error:", err);
   } finally {
@@ -193,6 +239,8 @@ app.use("/api", (_req, res, next) => {
 
 app.use("/api", browserRateLimit);
 app.use(authMiddleware);
+// Auto-resolve tenantId for every authenticated request
+app.use("/api", tenantContextMiddleware);
 
 app.use("/api", router);
 

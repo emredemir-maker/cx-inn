@@ -5,7 +5,9 @@ import { z } from "zod/v4";
 export const customersTable = pgTable("customers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  email: text("email").notNull().unique(),
+  // email alone is no longer globally unique — uniqueness is enforced per-tenant
+  // by the composite index customers_tenant_email_unique (see Faz 4 migration)
+  email: text("email").notNull(),
   company: text("company"),
   segment: text("segment").notNull().default("Genel"),
   npsScore: real("nps_score"),

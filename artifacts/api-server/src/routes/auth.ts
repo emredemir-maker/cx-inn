@@ -1,9 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, usersTable, invitationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, invitationsTable, tenantMembershipsTable, tenantsTable, sessionsTable, type Invitation } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import {
   clearSession,
   getSessionId,
+  getSession,
   createSession,
   deleteSession,
   SESSION_COOKIE,
@@ -12,6 +13,8 @@ import {
 } from "../lib/auth";
 import { verifyFirebaseToken } from "../lib/firebase-admin";
 import type { UserRole } from "@workspace/db";
+
+const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL ?? "";
 
@@ -51,6 +54,7 @@ async function upsertUser(decoded: {
 
   // Check for a pending invitation by email
   let invitedRole: UserRole | null = null;
+  let acceptedInvite: Invitation | null = null;
   if (decoded.email && !isSuperadmin) {
     const [invite] = await db
       .select()
@@ -59,6 +63,7 @@ async function upsertUser(decoded: {
 
     if (invite && !invite.accepted) {
       invitedRole = invite.role as UserRole;
+      acceptedInvite = invite;
       // Mark invitation as accepted
       await db
         .update(invitationsTable)
@@ -86,6 +91,33 @@ async function upsertUser(decoded: {
       },
     })
     .returning();
+
+  // ── Create tenant_membership if invitation has a tenantId ─────────────────
+  if (acceptedInvite?.tenantId) {
+    const tenantRole =
+      invitedRole === "cx_manager" ? "cx_manager"
+      : invitedRole === "superadmin" ? "tenant_admin"
+      : "cx_user";
+    await db
+      .insert(tenantMembershipsTable)
+      .values({
+        tenantId: acceptedInvite.tenantId,
+        userId: user.id,
+        role: tenantRole,
+      })
+      .onConflictDoNothing();
+  }
+
+  // ── Ensure every user has at least a membership in the default tenant ──────
+  await db
+    .insert(tenantMembershipsTable)
+    .values({
+      tenantId: DEFAULT_TENANT_ID,
+      userId: user.id,
+      role: isSuperadmin ? "tenant_admin" : (invitedRole === "cx_manager" ? "cx_manager" : "cx_user"),
+    })
+    .onConflictDoNothing();
+
   return user;
 }
 
@@ -116,20 +148,148 @@ router.post("/auth/firebase-login", async (req: Request, res: Response) => {
     picture: decoded.picture,
   });
 
+  // ── Query tenant memberships ───────────────────────────────────────────────
+  const memberships = await db
+    .select({
+      tenantId: tenantMembershipsTable.tenantId,
+      role: tenantMembershipsTable.role,
+      name: tenantsTable.name,
+      slug: tenantsTable.slug,
+      logoUrl: tenantsTable.logoUrl,
+      primaryColor: tenantsTable.primaryColor,
+      isActive: tenantsTable.isActive,
+    })
+    .from(tenantMembershipsTable)
+    .innerJoin(tenantsTable, eq(tenantMembershipsTable.tenantId, tenantsTable.id))
+    .where(eq(tenantMembershipsTable.userId, dbUser.id));
+
+  // Active tenants only — filter after join
+  const activeTenants = memberships.filter((m) => m.isActive);
+
+  // Auto-select: single tenant → embed in session; multiple → require picker
+  const requiresTenantPicker = activeTenants.length > 1;
+  const autoTenant = activeTenants.length === 1 ? activeTenants[0] : null;
+
+  const sessionUser = {
+    id: dbUser.id,
+    email: dbUser.email,
+    firstName: dbUser.firstName,
+    lastName: dbUser.lastName,
+    profileImageUrl: dbUser.profileImageUrl,
+    role: dbUser.role as UserRole,
+  };
+
   const sessionData: SessionData = {
-    user: {
-      id: dbUser.id,
-      email: dbUser.email,
-      firstName: dbUser.firstName,
-      lastName: dbUser.lastName,
-      profileImageUrl: dbUser.profileImageUrl,
-      role: dbUser.role as UserRole,
-    },
+    user: sessionUser,
+    tenantId: autoTenant?.tenantId ?? null,
+    tenantRole: autoTenant?.role ?? null,
   };
 
   const sid = await createSession(sessionData);
   setSessionCookie(res, sid);
-  res.json({ user: sessionData.user });
+
+  res.json({
+    user: sessionUser,
+    tenants: activeTenants.map((m) => ({
+      id: m.tenantId,
+      name: m.name,
+      slug: m.slug,
+      logoUrl: m.logoUrl,
+      primaryColor: m.primaryColor,
+      role: m.role,
+    })),
+    requiresTenantPicker,
+    currentTenantId: autoTenant?.tenantId ?? null,
+  });
+});
+
+// ── GET /auth/tenant-info — current tenant context ────────────────────────────
+router.get("/auth/tenant-info", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Kimlik doğrulama gerekli" });
+    return;
+  }
+
+  const memberships = await db
+    .select({
+      tenantId: tenantMembershipsTable.tenantId,
+      role: tenantMembershipsTable.role,
+      name: tenantsTable.name,
+      slug: tenantsTable.slug,
+      logoUrl: tenantsTable.logoUrl,
+      primaryColor: tenantsTable.primaryColor,
+      isActive: tenantsTable.isActive,
+    })
+    .from(tenantMembershipsTable)
+    .innerJoin(tenantsTable, eq(tenantMembershipsTable.tenantId, tenantsTable.id))
+    .where(eq(tenantMembershipsTable.userId, req.user!.id));
+
+  const activeTenants = memberships.filter((m) => m.isActive);
+
+  res.json({
+    currentTenantId: req.tenantId ?? null,
+    currentTenantRole: req.tenantRole ?? null,
+    tenants: activeTenants.map((m) => ({
+      id: m.tenantId,
+      name: m.name,
+      slug: m.slug,
+      logoUrl: m.logoUrl,
+      primaryColor: m.primaryColor,
+      role: m.role,
+    })),
+  });
+});
+
+// ── POST /auth/switch-tenant — switch active tenant ───────────────────────────
+router.post("/auth/switch-tenant", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Kimlik doğrulama gerekli" });
+    return;
+  }
+
+  const { tenantId } = req.body as { tenantId?: string };
+  if (!tenantId) {
+    res.status(400).json({ error: "tenantId zorunludur" });
+    return;
+  }
+
+  // Verify user has access to the requested tenant
+  const [membership] = await db
+    .select()
+    .from(tenantMembershipsTable)
+    .where(
+      and(
+        eq(tenantMembershipsTable.tenantId, tenantId),
+        eq(tenantMembershipsTable.userId, req.user!.id),
+      ),
+    );
+
+  if (!membership) {
+    res.status(403).json({ error: "Bu tenant'a erişim yetkiniz yok" });
+    return;
+  }
+
+  // Patch the session record directly with the new tenant context
+  const sid = getSessionId(req);
+  if (sid) {
+    const session = await getSession(sid);
+    if (session) {
+      const updated: SessionData = {
+        ...session,
+        tenantId: membership.tenantId,
+        tenantRole: membership.role,
+      };
+      await db
+        .update(sessionsTable)
+        .set({ sess: updated as unknown as Record<string, unknown> })
+        .where(eq(sessionsTable.sid, sid));
+    }
+  }
+
+  res.json({
+    tenantId: membership.tenantId,
+    tenantRole: membership.role,
+  });
 });
 
 router.post("/logout", async (req: Request, res: Response) => {

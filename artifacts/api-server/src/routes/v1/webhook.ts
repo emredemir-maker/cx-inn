@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, interactionsTable, interactionRecordsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -18,12 +18,12 @@ const SUPPORTED_EVENT_TYPES = [
   "call.ended",
 ];
 
-// Helper: upsert customer by email
-async function upsertCustomer(email: string, name?: string, company?: string) {
+// Helper: upsert customer by (tenantId, email) — each tenant has isolated records
+async function upsertCustomer(tenantId: string, email: string, name?: string, company?: string) {
   const [existing] = await db
     .select()
     .from(customersTable)
-    .where(eq(customersTable.email, email))
+    .where(and(eq(customersTable.tenantId, tenantId), eq(customersTable.email, email)))
     .limit(1);
   if (existing) return existing;
   const [created] = await db
@@ -35,6 +35,7 @@ async function upsertCustomer(email: string, name?: string, company?: string) {
       segment: "Genel",
       sentiment: "neutral",
       churnRisk: "low",
+      tenantId,
     })
     .returning();
   return created;
@@ -42,6 +43,11 @@ async function upsertCustomer(email: string, name?: string, company?: string) {
 
 // POST /api/v1/webhook/events — generic webhook receiver
 router.post("/events", async (req, res) => {
+  const tenantId = (req as any).tenantId as string | undefined;
+  if (!tenantId) {
+    return res.status(401).json({ error: "API anahtarı bir tenant ile ilişkilendirilmemiş." });
+  }
+
   const { type, data, source } = req.body as {
     type: string;
     data: Record<string, any>;
@@ -59,7 +65,7 @@ router.post("/events", async (req, res) => {
     if (type === "interaction.created" || type === "chat.ended" || type === "call.ended") {
       const { customerEmail, customerName, channel, event, sentiment, score } = data;
       if (customerEmail) {
-        const customer = await upsertCustomer(customerEmail, customerName, data.customerCompany);
+        const customer = await upsertCustomer(tenantId, customerEmail, customerName, data.customerCompany);
         const [interaction] = await db
           .insert(interactionsTable)
           .values({
@@ -68,6 +74,7 @@ router.post("/events", async (req, res) => {
             event: event ?? type,
             sentiment: sentiment ?? "neutral",
             score: score !== undefined ? Number(score) : null,
+            tenantId,
           })
           .returning();
         result = { ...result, customerId: customer.id, interactionId: interaction.id };
@@ -84,7 +91,7 @@ router.post("/events", async (req, res) => {
         const [existing] = await db
           .select()
           .from(customersTable)
-          .where(eq(customersTable.email, customerEmail))
+          .where(and(eq(customersTable.tenantId, tenantId), eq(customersTable.email, customerEmail)))
           .limit(1);
         if (existing) {
           await db
@@ -97,6 +104,7 @@ router.post("/events", async (req, res) => {
             event: type,
             sentiment,
             score: numScore,
+            tenantId,
           });
           result = { ...result, customerId: existing.id };
         }
@@ -107,7 +115,7 @@ router.post("/events", async (req, res) => {
     else if (type === "support.ticket.created" || type === "support.ticket.resolved") {
       const { customerEmail, customerName, subject, content, channel, agentName } = data;
       if (customerEmail) {
-        const customer = await upsertCustomer(customerEmail, customerName, data.customerCompany);
+        const customer = await upsertCustomer(tenantId, customerEmail, customerName, data.customerCompany);
         const status = type === "support.ticket.resolved" ? "resolved" : "open";
         const [record] = await db
           .insert(interactionRecordsTable)
@@ -121,6 +129,7 @@ router.post("/events", async (req, res) => {
             agentName: agentName ?? null,
             resolution: type === "support.ticket.resolved" ? (data.resolution ?? "Çözüldü") : null,
             interactedAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+            tenantId,
           })
           .returning();
         result = { ...result, customerId: customer.id, recordId: record.id };
@@ -134,7 +143,7 @@ router.post("/events", async (req, res) => {
         const [existing] = await db
           .select()
           .from(customersTable)
-          .where(eq(customersTable.email, customerEmail))
+          .where(and(eq(customersTable.tenantId, tenantId), eq(customersTable.email, customerEmail)))
           .limit(1);
         if (type === "customer.updated" && existing) {
           await db.update(customersTable).set({
@@ -144,7 +153,7 @@ router.post("/events", async (req, res) => {
           }).where(eq(customersTable.id, existing.id));
           result = { ...result, customerId: existing.id };
         } else if (type === "customer.created" && !existing) {
-          const customer = await upsertCustomer(customerEmail, customerName, company);
+          const customer = await upsertCustomer(tenantId, customerEmail, customerName, company);
           result = { ...result, customerId: customer.id };
         }
       }

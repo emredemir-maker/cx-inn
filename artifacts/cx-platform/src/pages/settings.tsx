@@ -57,7 +57,12 @@ function Field({ label, icon, children, hint }: {
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { realRole } = useAppAuth();
+  const { realRole, currentTenantRole, tenants, currentTenantId } = useAppAuth();
+
+  const currentTenant = tenants.find((t) => t.id === currentTenantId);
+
+  // Allow access to: superadmin, and tenant_admin within their tenant
+  const canEdit = realRole === "superadmin" || currentTenantRole === "tenant_admin";
 
   const { data: settings, isLoading } = useQuery<CompanySettings>({
     queryKey: ["company-settings"],
@@ -211,15 +216,29 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground tracking-tight">Hesap Ayarları</h1>
-            <p className="text-muted-foreground mt-1">Firma bilgilerinizi düzenleyin. Bu bilgiler gönderilen e-posta ve anketlerde kullanılır.</p>
+            <p className="text-muted-foreground mt-1">
+              {currentTenant ? (
+                <span>
+                  <span className="font-medium" style={{ color: currentTenant.primaryColor }}>
+                    {currentTenant.name}
+                  </span>
+                  {" "}firma bilgilerini düzenleyin. Bu bilgiler gönderilen e-posta ve anketlerde kullanılır.
+                </span>
+              ) : (
+                "Firma bilgilerinizi düzenleyin. Bu bilgiler gönderilen e-posta ve anketlerde kullanılır."
+              )}
+            </p>
           </div>
           <button
             onClick={() => saveMutation.mutate(form)}
-            disabled={saveMutation.isPending}
+            disabled={saveMutation.isPending || !canEdit}
+            title={!canEdit ? "Bu ayarları değiştirmek için yetkiniz yok" : undefined}
             className={cn(
               "flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all",
               saveMutation.isPending
                 ? "bg-primary/50 text-white/70 cursor-not-allowed"
+                : !canEdit
+                ? "bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
                 : "bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)]"
             )}
           >
@@ -462,11 +481,14 @@ export default function SettingsPage() {
         <div className="flex justify-end pb-4">
           <button
             onClick={() => saveMutation.mutate(form)}
-            disabled={saveMutation.isPending}
+            disabled={saveMutation.isPending || !canEdit}
+            title={!canEdit ? "Bu ayarları değiştirmek için yetkiniz yok" : undefined}
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all",
               saveMutation.isPending
                 ? "bg-primary/50 text-white/70 cursor-not-allowed"
+                : !canEdit
+                ? "bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
                 : "bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)]"
             )}
           >

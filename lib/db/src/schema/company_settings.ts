@@ -1,4 +1,5 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { tenantsTable } from "./tenants";
 
 export const companySettingsTable = pgTable("company_settings", {
   id: serial("id").primaryKey(),
@@ -10,6 +11,8 @@ export const companySettingsTable = pgTable("company_settings", {
   industry: text("industry"),
   description: text("description"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 3) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id").references(() => tenantsTable.id),
 });
 
 export type CompanySettings = typeof companySettingsTable.$inferSelect;

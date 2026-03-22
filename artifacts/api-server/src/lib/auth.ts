@@ -21,6 +21,10 @@ export interface SessionUser {
 
 export interface SessionData {
   user: SessionUser;
+  /** Currently active tenant for this session */
+  tenantId?: string | null;
+  /** The user's role within the active tenant */
+  tenantRole?: string | null;
 }
 
 export async function createSession(data: SessionData): Promise<string> {

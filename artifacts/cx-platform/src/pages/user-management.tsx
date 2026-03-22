@@ -148,6 +148,78 @@ function RoleDropdown({
   );
 }
 
+// ── Tenant Admin invite form (uses /platform/my-tenant/invite) ────────────────
+function TenantInviteForm({ onSuccess }: { onSuccess: () => void }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"cx_manager" | "cx_user">("cx_user");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${BASE}/api/platform/my-tenant/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim(), role }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error: string };
+        throw new Error(err.error);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setEmail("");
+      setRole("cx_user");
+      onSuccess();
+    },
+    onError: (err) => alert((err as Error).message),
+  });
+
+  return (
+    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/80 p-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
+          <UserPlus className="w-4 h-4 text-indigo-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-white">Kullanıcı Davet Et</h3>
+          <p className="text-xs text-slate-500">Davet edilen kişi Google ile giriş yaptığında firmaya eklenir</p>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="kullanici@firma.com"
+            type="email"
+            className="w-full h-10 pl-9 pr-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/60"
+          />
+        </div>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as "cx_manager" | "cx_user")}
+          className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none"
+        >
+          <option value="cx_user">CX Kullanıcısı</option>
+          <option value="cx_manager">CX Manager</option>
+        </select>
+        <button
+          onClick={() => email.trim() && mutation.mutate()}
+          disabled={!email.trim() || mutation.isPending}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+        >
+          {mutation.isPending
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : <SendHorizonal className="w-4 h-4" />}
+          Davet Et
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function InviteForm() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("cx_user");
@@ -248,9 +320,24 @@ function InviteForm() {
   );
 }
 
+interface TenantMember {
+  membershipId: number;
+  userId: string;
+  role: string;
+  joinedAt: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  profileImageUrl: string | null;
+}
+
 export default function UserManagementPage() {
-  const { user: me } = useAppAuth();
+  const { user: me, currentTenantRole } = useAppAuth();
   const queryClient = useQueryClient();
+
+  const isSuperadmin = me?.role === "superadmin";
+  const isTenantAdmin = currentTenantRole === "tenant_admin";
+  const canAccess = isSuperadmin || isTenantAdmin;
 
   const { data: users = [], isLoading: usersLoading } = useQuery<PlatformUser[]>({
     queryKey: ["platform-users"],
@@ -259,7 +346,19 @@ export default function UserManagementPage() {
       if (!res.ok) throw new Error("Kullanıcılar yüklenemedi");
       return res.json();
     },
-    enabled: me?.role === "superadmin",
+    enabled: isSuperadmin,
+  });
+
+  // Tenant admin: load members via tenant API
+  const { data: tenantMembers = [], isLoading: tenantMembersLoading } = useQuery<TenantMember[]>({
+    queryKey: ["my-tenant-members"],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/api/platform/my-tenant/members`, { credentials: "include" });
+      if (!res.ok) throw new Error("Üyeler yüklenemedi");
+      const data = (await res.json()) as { members: TenantMember[] };
+      return data.members;
+    },
+    enabled: isTenantAdmin && !isSuperadmin,
   });
 
   const { data: invitations = [], isLoading: invitationsLoading } = useQuery<Invitation[]>({
@@ -269,7 +368,19 @@ export default function UserManagementPage() {
       if (!res.ok) throw new Error("Davetler yüklenemedi");
       return res.json();
     },
-    enabled: me?.role === "superadmin",
+    enabled: isSuperadmin,
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`${BASE}/api/platform/my-tenant/members/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Üye kaldırılamadı");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-tenant-members"] }),
+    onError: (err) => alert((err as Error).message),
   });
 
   const deleteInvitation = useMutation({
@@ -295,13 +406,108 @@ export default function UserManagementPage() {
     }
   };
 
-  if (me?.role !== "superadmin") {
+  if (!canAccess) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <Crown className="w-12 h-12 text-amber-500/40 mx-auto mb-4" />
             <p className="text-slate-400">Bu sayfaya erişim yetkiniz yok.</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ── Tenant Admin View ──────────────────────────────────────────────────────
+  if (isTenantAdmin && !isSuperadmin) {
+    return (
+      <Layout>
+        <div className="space-y-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center">
+                  <UserCog className="w-4 h-4 text-indigo-400" />
+                </div>
+                <h1 className="text-2xl font-bold text-white">Kullanıcı Yönetimi</h1>
+              </div>
+              <p className="text-slate-400 text-sm ml-11">
+                Firmanızdaki kullanıcıları yönetin — yeni kullanıcı davet edin, gerektiğinde kaldırın.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-indigo-500/25 bg-indigo-500/10 text-xs font-semibold text-indigo-400">
+              <Users className="w-3.5 h-3.5" />
+              {tenantMembers.length} üye
+            </div>
+          </div>
+
+          {/* Tenant Invite Form */}
+          <TenantInviteForm onSuccess={() => queryClient.invalidateQueries({ queryKey: ["my-tenant-members"] })} />
+
+          {/* Members list */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+            <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-800">
+              <UserCheck className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-sm font-semibold text-white">
+                Üyeler
+                <span className="ml-2 text-xs text-slate-500 font-normal">({tenantMembers.length})</span>
+              </h2>
+            </div>
+
+            {tenantMembersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 w-5 animate-spin text-indigo-400" />
+              </div>
+            ) : tenantMembers.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 text-sm">Henüz üye yok.</div>
+            ) : (
+              <div className="divide-y divide-slate-800">
+                {tenantMembers.map((member) => {
+                  const displayName =
+                    [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email || "—";
+                  const initials = displayName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+                  const isSelf = member.userId === me?.id;
+                  const ROLE_LABELS: Record<string, string> = {
+                    tenant_admin: "Tenant Admin",
+                    cx_manager: "CX Manager",
+                    cx_user: "CX Kullanıcısı",
+                  };
+                  return (
+                    <div key={member.userId} className="flex items-center gap-4 px-6 py-4 hover:bg-white/[0.02] transition-colors group">
+                      {member.profileImageUrl ? (
+                        <img src={member.profileImageUrl} alt={displayName} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-700 flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-sm font-bold text-white ring-2 ring-slate-700 flex-shrink-0">
+                          {initials}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{displayName}</p>
+                        <p className="text-xs text-slate-500 truncate">{member.email}</p>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 flex-shrink-0">
+                        {ROLE_LABELS[member.role] ?? member.role}
+                      </span>
+                      {!isSelf && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`${displayName} kullanıcısını firmadan kaldırmak istediğinize emin misiniz?`)) {
+                              removeMemberMutation.mutate(member.userId);
+                            }
+                          }}
+                          disabled={removeMemberMutation.isPending}
+                          title="Üyeyi kaldır"
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-all"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </Layout>
