@@ -1,8 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db, tenantMembershipsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-
-const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
+import { DEFAULT_TENANT_ID } from "../lib/constants";
 
 /**
  * tenantContextMiddleware
@@ -13,10 +12,10 @@ const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
  * auto-resolves the tenant:
  *   - Single membership → auto-select that tenant
  *   - Multiple memberships → leave tenantId as null (frontend must call switch-tenant)
- *   - Superadmin with no membership → fall back to default tenant
+ *   - Superadmin with no membership → fall back to default tenant (in-memory, no DB record)
  *
- * This middleware is NON-BLOCKING — missing tenantId is tolerated in Faz 2.
- * Faz 4 will add strict enforcement.
+ * Routes that require a valid tenant must guard with:
+ *   if (!req.tenantId) return res.status(400).json({ error: "Aktif tenant seçili değil" });
  */
 export async function tenantContextMiddleware(
   req: Request,

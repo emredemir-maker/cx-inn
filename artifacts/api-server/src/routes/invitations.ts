@@ -1,8 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, invitationsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireRole } from "../middleware/requireRole";
 import { sendEmail } from "../services/email";
+import { DEFAULT_TENANT_ID, EMAIL_RE } from "../lib/constants";
 
 const router: IRouter = Router();
 
@@ -110,12 +111,12 @@ router.post(
     const { email, role } = req.body as { email?: string; role?: string };
     const reqUser = req.user as { id: string; firstName?: string; lastName?: string; email?: string };
 
-    if (!email || !email.includes("@")) {
+    if (!email || !EMAIL_RE.test(email.trim())) {
       res.status(400).json({ error: "Geçerli bir e-posta adresi girin" });
       return;
     }
 
-    const validRoles = ["superadmin", "cx_manager", "cx_user"];
+    const validRoles = ["superadmin", "tenant_admin", "cx_manager", "cx_user"];
     if (!role || !validRoles.includes(role)) {
       res.status(400).json({ error: "Geçersiz rol" });
       return;
@@ -136,13 +137,14 @@ router.post(
         .insert(invitationsTable)
         .values({
           email: email.toLowerCase(),
-          role: role as "superadmin" | "cx_manager" | "cx_user",
+          role: role as "superadmin" | "tenant_admin" | "cx_manager" | "cx_user",
+          tenantId: DEFAULT_TENANT_ID,   // legacy platform invites belong to the default tenant
           invitedBy: reqUser.id,
         })
         .onConflictDoUpdate({
-          target: invitationsTable.email,
+          target: [invitationsTable.email, invitationsTable.tenantId],
           set: {
-            role: role as "superadmin" | "cx_manager" | "cx_user",
+            role: role as "superadmin" | "tenant_admin" | "cx_manager" | "cx_user",
             invitedBy: reqUser.id,
             accepted: false,
             acceptedAt: null,
@@ -220,9 +222,15 @@ router.delete(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    await db
+    const [deleted] = await db
       .delete(invitationsTable)
-      .where(eq(invitationsTable.id, Number(id)));
+      .where(eq(invitationsTable.id, Number(id)))
+      .returning({ id: invitationsTable.id });
+
+    if (!deleted) {
+      res.status(404).json({ error: "Davet bulunamadı" });
+      return;
+    }
 
     res.json({ success: true });
   },

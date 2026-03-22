@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, interactionsTable, interactionRecordsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { MAX_FIELD_LENGTHS } from "../../lib/constants";
 
 const router = Router();
 
@@ -56,6 +57,12 @@ router.post("/events", async (req, res) => {
 
   if (!type || !data) {
     return res.status(400).json({ error: "'type' ve 'data' alanları zorunlu." });
+  }
+
+  if (!SUPPORTED_EVENT_TYPES.includes(type)) {
+    return res.status(400).json({
+      error: `Desteklenmeyen event tipi: '${type}'. Geçerli tipler için GET /api/v1/webhook/event-types kullanın.`,
+    });
   }
 
   try {
@@ -117,13 +124,15 @@ router.post("/events", async (req, res) => {
       if (customerEmail) {
         const customer = await upsertCustomer(tenantId, customerEmail, customerName, data.customerCompany);
         const status = type === "support.ticket.resolved" ? "resolved" : "open";
+        const safeSubject = (subject ?? `${source ?? "Webhook"} ticket`).slice(0, MAX_FIELD_LENGTHS.subject);
+        const safeContent = (content ?? "").slice(0, MAX_FIELD_LENGTHS.content);
         const [record] = await db
           .insert(interactionRecordsTable)
           .values({
             customerId: customer.id,
             type: "ticket",
-            subject: subject ?? `${source ?? "Webhook"} ticket`,
-            content: content ?? "",
+            subject: safeSubject,
+            content: safeContent,
             status,
             channel: channel ?? "email",
             agentName: agentName ?? null,

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, interactionsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
+import { MAX_FIELD_LENGTHS } from "../../lib/constants";
 
 const router = Router();
 
@@ -12,11 +13,23 @@ function validateInteraction(data: any): { ok: true; value: any } | { ok: false;
   if (!data.customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerEmail)) {
     return { ok: false, error: "Geçerli bir 'customerEmail' gerekli." };
   }
+  if ((data.customerEmail as string).length > MAX_FIELD_LENGTHS.email) {
+    return { ok: false, error: `'customerEmail' en fazla ${MAX_FIELD_LENGTHS.email} karakter olabilir.` };
+  }
   if (!data.channel || !VALID_CHANNELS.includes(data.channel)) {
     return { ok: false, error: `'channel' şunlardan biri olmalı: ${VALID_CHANNELS.join(", ")}` };
   }
   if (!data.event || typeof data.event !== "string") {
     return { ok: false, error: "'event' alanı zorunlu." };
+  }
+  if ((data.event as string).length > MAX_FIELD_LENGTHS.event) {
+    return { ok: false, error: `'event' en fazla ${MAX_FIELD_LENGTHS.event} karakter olabilir.` };
+  }
+  if (data.customerName && typeof data.customerName === "string" && data.customerName.length > MAX_FIELD_LENGTHS.name) {
+    return { ok: false, error: `'customerName' en fazla ${MAX_FIELD_LENGTHS.name} karakter olabilir.` };
+  }
+  if (data.customerCompany && typeof data.customerCompany === "string" && data.customerCompany.length > MAX_FIELD_LENGTHS.company) {
+    return { ok: false, error: `'customerCompany' en fazla ${MAX_FIELD_LENGTHS.company} karakter olabilir.` };
   }
   const sentiment = VALID_SENTIMENTS.includes(data.sentiment) ? data.sentiment : "neutral";
   const score = data.score !== undefined ? Number(data.score) : undefined;

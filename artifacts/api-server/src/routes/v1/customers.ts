@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, interactionsTable } from "@workspace/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { maskCustomer } from "../../utils/pii-mask";
 import { sanitizeError } from "../../lib/sanitize-error";
 
@@ -15,14 +15,19 @@ router.get("/", async (req, res) => {
   }
   const masked = req.query.masked !== "false";
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
-  const offset = Number(req.query.offset ?? 0);
+  const rawOffset = Number(req.query.offset ?? 0);
+  const offset = isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
   try {
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(customersTable)
+      .where(eq(customersTable.tenantId, tenantId));
     const customers = await db.select().from(customersTable)
       .where(eq(customersTable.tenantId, tenantId))
       .orderBy(desc(customersTable.createdAt))
       .limit(limit).offset(offset);
     const result = masked ? customers.map((c) => maskCustomer(c)) : customers;
-    res.json({ total: customers.length, customers: result, masked });
+    res.json({ total, customers: result, masked });
   } catch (err) {
     res.status(500).json({ error: sanitizeError(err) });
   }

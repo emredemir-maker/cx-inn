@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable, invitationsTable, tenantMembershipsTable, tenantsTable, sessionsTable, type Invitation } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
   clearSession,
   getSessionId,
@@ -13,8 +13,7 @@ import {
 } from "../lib/auth";
 import { verifyFirebaseToken } from "../lib/firebase-admin";
 import type { UserRole } from "@workspace/db";
-
-const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
+import { DEFAULT_TENANT_ID } from "../lib/constants";
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL ?? "";
 
@@ -53,16 +52,23 @@ async function upsertUser(decoded: {
     profileImageUrl: decoded.picture ?? null,
   };
 
-  // Check for a pending invitation by email
+  // Check for a pending invitation by email — newest unaccepted invite wins
   let invitedRole: UserRole | null = null;
   let acceptedInvite: Invitation | null = null;
   if (decoded.email && !isSuperadmin) {
     const [invite] = await db
       .select()
       .from(invitationsTable)
-      .where(eq(invitationsTable.email, decoded.email.toLowerCase()));
+      .where(
+        and(
+          eq(invitationsTable.email, decoded.email.toLowerCase()),
+          eq(invitationsTable.accepted, false),
+        ),
+      )
+      .orderBy(desc(invitationsTable.createdAt))
+      .limit(1);
 
-    if (invite && !invite.accepted) {
+    if (invite) {
       invitedRole = invite.role as UserRole;
       acceptedInvite = invite;
       // Mark invitation as accepted
@@ -281,20 +287,21 @@ router.post("/auth/switch-tenant", async (req: Request, res: Response) => {
   }
   const membership = { tenantId, role: row.membershipRole };
 
-  // Patch the session record directly with the new tenant context
+  // Rotate the session on tenant context change to prevent session fixation.
+  // Delete the old session and create a fresh one with the new tenant context.
   const sid = getSessionId(req);
   if (sid) {
     const session = await getSession(sid);
     if (session) {
-      const updated: SessionData = {
+      await deleteSession(sid);
+      clearSession(res);
+      const newSessionData: SessionData = {
         ...session,
         tenantId: membership.tenantId,
         tenantRole: membership.role,
       };
-      await db
-        .update(sessionsTable)
-        .set({ sess: updated as unknown as Record<string, unknown> })
-        .where(eq(sessionsTable.sid, sid));
+      const newSid = await createSession(newSessionData);
+      setSessionCookie(res, newSid);
     }
   }
 

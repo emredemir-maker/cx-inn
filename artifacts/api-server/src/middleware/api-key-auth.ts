@@ -1,12 +1,10 @@
-import { createHash } from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
 import { apiKeysTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { hashKey } from "../lib/hash-key";
 
-export function hashKey(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex");
-}
+export { hashKey };
 
 export async function apiKeyAuth(req: Request, res: Response, next: NextFunction) {
   const raw = req.headers["x-api-key"] as string | undefined;

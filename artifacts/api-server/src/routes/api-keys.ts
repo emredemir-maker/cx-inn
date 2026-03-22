@@ -1,18 +1,14 @@
 import { Router } from "express";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { apiKeysTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
-
-const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
 import { requireTenantRole } from "../middleware/requireRole";
 import { sanitizeError } from "../lib/sanitize-error";
+import { hashKey } from "../lib/hash-key";
+import { DEFAULT_TENANT_ID } from "../lib/constants";
 
 const router = Router();
-
-function hashKey(raw: string) {
-  return createHash("sha256").update(raw).digest("hex");
-}
 
 function generateKey() {
   const raw = "cxinn_sk_" + randomBytes(24).toString("hex");

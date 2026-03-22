@@ -4,8 +4,7 @@ import { companySettingsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireTenantRole } from "../middleware/requireRole";
 import { sanitizeError } from "../lib/sanitize-error";
-
-const DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001";
+import { DEFAULT_TENANT_ID, HEX_COLOR_RE } from "../lib/constants";
 
 const router = Router();
 
@@ -61,9 +60,25 @@ router.put(
         description?: string;
       };
 
+      // Validate logoUrl — must be a safe http/https URL or empty
+      if (logoUrl !== undefined && logoUrl !== "" && logoUrl !== null) {
+        try {
+          const u = new URL(logoUrl);
+          if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error();
+        } catch {
+          res.status(400).json({ error: "logoUrl geçerli bir https/http URL'si olmalıdır" });
+          return;
+        }
+      }
+      // Validate primaryColor — must be a 6-digit hex color
+      if (primaryColor !== undefined && primaryColor !== "" && !HEX_COLOR_RE.test(primaryColor)) {
+        res.status(400).json({ error: "primaryColor #rrggbb formatında olmalıdır (örn: #6366f1)" });
+        return;
+      }
+
       const patch: Record<string, unknown> = { updatedAt: new Date() };
       if (companyName !== undefined) patch.companyName = companyName;
-      if (logoUrl !== undefined) patch.logoUrl = logoUrl;
+      if (logoUrl !== undefined) patch.logoUrl = logoUrl || null;
       if (primaryColor !== undefined) patch.primaryColor = primaryColor;
       if (email !== undefined) patch.email = email;
       if (website !== undefined) patch.website = website;

@@ -8,6 +8,26 @@ import {
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireRole, requireTenantRole } from "../middleware/requireRole";
+import { HEX_COLOR_RE } from "../lib/constants";
+
+/** Returns an error string if logoUrl is invalid, or null if valid/empty. */
+function validateLogoUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return "logoUrl geçerli bir https/http URL'si olmalıdır";
+  } catch {
+    return "logoUrl geçerli bir URL olmalıdır";
+  }
+  return null;
+}
+
+/** Returns an error string if color is invalid, or null if valid/empty. */
+function validateColor(color: string | undefined | null): string | null {
+  if (!color) return null;
+  if (!HEX_COLOR_RE.test(color)) return "primaryColor #rrggbb formatında olmalıdır (örn: #6366f1)";
+  return null;
+}
 
 const router: IRouter = Router();
 
@@ -68,6 +88,11 @@ router.post(
       });
       return;
     }
+
+    const logoErr = validateLogoUrl(logoUrl);
+    if (logoErr) { res.status(400).json({ error: logoErr }); return; }
+    const colorErr = validateColor(primaryColor);
+    if (colorErr) { res.status(400).json({ error: colorErr }); return; }
 
     const validPlans = ["standard", "professional", "enterprise"] as const;
     const safePlan = validPlans.includes(plan as (typeof validPlans)[number])
@@ -141,6 +166,15 @@ router.put(
         });
         return;
       }
+    }
+
+    if (logoUrl !== undefined) {
+      const logoErr = validateLogoUrl(logoUrl);
+      if (logoErr) { res.status(400).json({ error: logoErr }); return; }
+    }
+    if (primaryColor !== undefined) {
+      const colorErr = validateColor(primaryColor);
+      if (colorErr) { res.status(400).json({ error: colorErr }); return; }
     }
 
     // Build update payload with only defined fields
