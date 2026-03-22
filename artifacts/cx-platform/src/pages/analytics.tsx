@@ -10,7 +10,8 @@ import {
   ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis,
+  AreaChart, Area, BarChart, Bar, Cell,
+  LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
@@ -449,6 +450,101 @@ export default function Analytics() {
           </div>
         </Card>
       </div>
+
+      {/* ─── Tag Distribution Chart ─── */}
+      {tagImpact && tagImpact.length > 0 && (
+        <Card className="mb-6">
+          <div className="p-5 border-b border-border/50">
+            <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Tag className="h-4 w-4 text-primary" /> Etiket Dağılımı
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              En sık görülen etiket kategorileri — renk NPS etkisini gösterir
+            </p>
+          </div>
+          <div className="p-5" style={{ height: Math.max(240, Math.min(tagImpact.length, 12) * 36 + 48) }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={tagImpact.slice(0, 12)}
+                layout="vertical"
+                margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.06)" />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  label={{
+                    value: "Kayıt Sayısı",
+                    position: "insideBottomRight",
+                    offset: -4,
+                    fontSize: 10,
+                    fill: "hsl(var(--muted-foreground))",
+                  }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="tag"
+                  width={120}
+                  tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                    color: "hsl(var(--foreground))",
+                  }}
+                  formatter={(value: any, _name: any, props: any) => {
+                    const d = props.payload;
+                    return [
+                      <span key="v">
+                        <span className="font-bold">{value}</span> kayıt
+                        {d?.avgNps != null && (
+                          <span className={cn("ml-2", npsColor(d.avgNps))}>
+                            · NPS {d.avgNps}
+                          </span>
+                        )}
+                      </span>,
+                      "",
+                    ];
+                  }}
+                  labelFormatter={(label) => <span className="font-semibold">{label}</span>}
+                />
+                <Bar dataKey="ticketCount" name="Kayıt" radius={[0, 4, 4, 0]}>
+                  {tagImpact.slice(0, 12).map((item: any, i: number) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        item.avgNps >= 7 ? "rgba(74,222,128,0.75)"
+                          : item.avgNps >= 5 ? "rgba(250,204,21,0.75)"
+                          : "rgba(248,113,113,0.75)"
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="px-5 pb-4 flex items-center gap-4">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="inline-block w-3 h-3 rounded-sm bg-green-400/75" /> NPS ≥ 7 (İyi)
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="inline-block w-3 h-3 rounded-sm bg-yellow-400/75" /> NPS 5–7 (Orta)
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="inline-block w-3 h-3 rounded-sm bg-red-400/75" /> NPS &lt; 5 (Kötü)
+            </span>
+          </div>
+        </Card>
+      )}
 
       {/* ─── Tag Impact Table ─── */}
       <Card className="mb-6">

@@ -147,9 +147,27 @@ router.get("/customers/:id", requireAuth, async (req, res) => {
     );
     if (!customer) return res.status(404).json({ error: "Bulunamadı" });
 
-    const interactions = await db.select().from(interactionsTable)
-      .where(eq(interactionsTable.customerId, id))
-      .orderBy(interactionsTable.createdAt);
+    const [interactions, interactionRecords] = await Promise.all([
+      db.select().from(interactionsTable)
+        .where(eq(interactionsTable.customerId, id))
+        .orderBy(interactionsTable.createdAt),
+      db.select({
+        id: interactionRecordsTable.id,
+        subject: interactionRecordsTable.subject,
+        type: interactionRecordsTable.type,
+        status: interactionRecordsTable.status,
+        channel: interactionRecordsTable.channel,
+        tags: interactionRecordsTable.tags,
+        interactedAt: interactionRecordsTable.interactedAt,
+        excludedFromAnalysis: interactionRecordsTable.excludedFromAnalysis,
+      }).from(interactionRecordsTable)
+        .where(and(
+          eq(interactionRecordsTable.customerId, id),
+          eq(interactionRecordsTable.tenantId, tenantId),
+        ))
+        .orderBy(interactionRecordsTable.interactedAt)
+        .limit(30),
+    ]);
 
     res.json({
       ...customer,
@@ -158,6 +176,10 @@ router.get("/customers/:id", requireAuth, async (req, res) => {
       interactions: interactions.map(i => ({
         ...i,
         createdAt: i.createdAt.toISOString(),
+      })),
+      interactionRecords: interactionRecords.map(r => ({
+        ...r,
+        interactedAt: r.interactedAt?.toISOString() ?? null,
       })),
     });
   } catch (err) {

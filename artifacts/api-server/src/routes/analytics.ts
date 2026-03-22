@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { sql, desc, eq } from "drizzle-orm";
+import { sql, desc, eq, and } from "drizzle-orm";
 import { predictionAccuracyTable, customersTable } from "@workspace/db/schema";
 import { requireAuth } from "../middleware/requireRole";
 import { sanitizeError } from "../lib/sanitize-error";
@@ -8,9 +8,11 @@ import { sanitizeError } from "../lib/sanitize-error";
 const router: IRouter = Router();
 
 // ─── NPS/CSAT Impact by Tag ───────────────────────────────────────────────────
-router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
+router.get("/analytics/nps-impact", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) return res.status(400).json({ error: "Aktif tenant seçili değil" });
   try {
-    // Tag → NPS/CSAT impact
+    // Tag → NPS/CSAT impact (tenant-scoped)
     const tagImpact = await db.execute<{
       tag: string;
       avg_nps: string;
@@ -28,6 +30,8 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
         AND array_length(ir.tags, 1) > 0
         AND ca.predicted_nps IS NOT NULL
         AND NOT COALESCE(ir.excluded_from_analysis, false)
+        AND ir.tenant_id = ${tenantId}::uuid
+        AND ca.tenant_id = ${tenantId}::uuid
       GROUP BY tag
       ORDER BY ticket_count DESC
       LIMIT 20
@@ -49,6 +53,7 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
       WHERE ca.pain_points IS NOT NULL
         AND array_length(ca.pain_points, 1) > 0
         AND ca.predicted_nps IS NOT NULL
+        AND ca.tenant_id = ${tenantId}::uuid
       GROUP BY pain_point
       ORDER BY AVG(ca.predicted_nps) ASC
       LIMIT 15
@@ -70,6 +75,8 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
       JOIN cx_analyses ca ON ir.id = ANY(ca.interaction_ids)
       WHERE ca.predicted_nps IS NOT NULL
         AND NOT COALESCE(ir.excluded_from_analysis, false)
+        AND ir.tenant_id = ${tenantId}::uuid
+        AND ca.tenant_id = ${tenantId}::uuid
       GROUP BY ir.channel
       ORDER BY AVG(ca.predicted_nps) ASC
     `);
@@ -88,6 +95,7 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
         COUNT(*)::text as count
       FROM cx_analyses
       WHERE predicted_nps IS NOT NULL
+        AND tenant_id = ${tenantId}::uuid
       GROUP BY overall_sentiment
       ORDER BY AVG(predicted_nps) ASC
     `);
@@ -103,6 +111,7 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
         COUNT(*)::text as count
       FROM cx_analyses
       WHERE predicted_nps IS NOT NULL
+        AND tenant_id = ${tenantId}::uuid
       GROUP BY band
     `);
 
@@ -117,10 +126,11 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
         COUNT(*)::text as count
       FROM cx_analyses
       WHERE predicted_csat IS NOT NULL
+        AND tenant_id = ${tenantId}::uuid
       GROUP BY band
     `);
 
-    // Customer verbatim quotes (worst NPS first for pain, best for positive)
+    // Customer verbatim quotes — worst NPS first
     const verbatimNegative = await db.execute<{
       customer_name: string;
       content: string;
@@ -143,6 +153,8 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
         AND ir.content IS NOT NULL
         AND LENGTH(ir.content) > 60
         AND ir.content NOT LIKE '%Hello from AWS%'
+        AND ir.tenant_id = ${tenantId}::uuid
+        AND ca.tenant_id = ${tenantId}::uuid
       ORDER BY c.id, ca.predicted_nps ASC
       LIMIT 6
     `);
@@ -168,6 +180,8 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
       WHERE ca.overall_sentiment = 'neutral'
         AND ir.content IS NOT NULL
         AND LENGTH(ir.content) > 60
+        AND ir.tenant_id = ${tenantId}::uuid
+        AND ca.tenant_id = ${tenantId}::uuid
       ORDER BY c.id, ca.predicted_nps DESC
       LIMIT 6
     `);
@@ -186,6 +200,7 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
         COUNT(*) FILTER (WHERE churn_risk = 'high')::text as high_risk
       FROM cx_analyses
       WHERE predicted_nps IS NOT NULL
+        AND tenant_id = ${tenantId}::uuid
     `);
 
     res.json({
@@ -226,10 +241,11 @@ router.get("/analytics/nps-impact", requireAuth, async (_req, res) => {
 });
 
 // ─── Monthly Trend & Insights ─────────────────────────────────────────────────
-router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
+router.get("/analytics/monthly-trend", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) return res.status(400).json({ error: "Aktif tenant seçili değil" });
   try {
     const [monthlyStats, monthlyPainRows, monthlyChurnRows] = await Promise.all([
-      // Monthly NPS/CSAT/volume from interaction records (interacted_at = actual date)
       db.execute<{
         month_key: string;
         month_label: string;
@@ -252,6 +268,7 @@ router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
           FROM interaction_records ir
           LEFT JOIN cx_analyses ca ON ir.id = ANY(ca.interaction_ids)
           WHERE NOT COALESCE(ir.excluded_from_analysis, false)
+            AND ir.tenant_id = ${tenantId}::uuid
         )
         SELECT
           TO_CHAR(month, 'YYYY-MM') AS month_key,
@@ -267,7 +284,6 @@ router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
         GROUP BY month
         ORDER BY month ASC
       `),
-      // Monthly top pain points
       db.execute<{ month_key: string; pain_point: string; cnt: string }>(sql`
         WITH monthly_pains AS (
           SELECT
@@ -277,6 +293,8 @@ router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
           JOIN cx_analyses ca ON ir.id = ANY(ca.interaction_ids)
           WHERE ca.pain_points IS NOT NULL
             AND NOT COALESCE(ir.excluded_from_analysis, false)
+            AND ir.tenant_id = ${tenantId}::uuid
+            AND ca.tenant_id = ${tenantId}::uuid
         ),
         ranked AS (
           SELECT
@@ -290,7 +308,6 @@ router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
         SELECT month_key, pain_point, cnt FROM ranked WHERE rn <= 5
         ORDER BY month_key, cnt DESC
       `),
-      // Monthly churn risk distribution
       db.execute<{ month_key: string; churn_risk: string; cnt: string }>(sql`
         SELECT
           TO_CHAR(DATE_TRUNC('month', ir.interacted_at), 'YYYY-MM') AS month_key,
@@ -300,12 +317,13 @@ router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
         JOIN cx_analyses ca ON ir.id = ANY(ca.interaction_ids)
         WHERE NOT COALESCE(ir.excluded_from_analysis, false)
           AND ca.churn_risk IS NOT NULL
+          AND ir.tenant_id = ${tenantId}::uuid
+          AND ca.tenant_id = ${tenantId}::uuid
         GROUP BY month_key, ca.churn_risk
         ORDER BY month_key, cnt DESC
       `),
     ]);
 
-    // Group pain points and churn by month key
     const painByMonth: Record<string, { painPoint: string; count: number }[]> = {};
     for (const r of monthlyPainRows.rows) {
       if (!painByMonth[r.month_key]) painByMonth[r.month_key] = [];
@@ -340,9 +358,10 @@ router.get("/analytics/monthly-trend", requireAuth, async (_req, res) => {
 });
 
 // ─── Prediction Accuracy ─────────────────────────────────────────────────────
-router.get("/analytics/prediction-accuracy", requireAuth, async (_req, res) => {
+router.get("/analytics/prediction-accuracy", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) return res.status(400).json({ error: "Aktif tenant seçili değil" });
   try {
-    // Overall stats
     const statsResult = await db.execute<{
       total: string; mae_nps: string; mae_csat: string;
       avg_dev_nps: string; avg_dev_csat: string;
@@ -356,11 +375,12 @@ router.get("/analytics/prediction-accuracy", requireAuth, async (_req, res) => {
         ROUND(AVG(CASE WHEN survey_type = 'csat' THEN deviation END)::numeric, 2) AS avg_dev_csat,
         SUM(CASE WHEN over_predicted THEN 1 ELSE 0 END) AS over_count,
         SUM(CASE WHEN NOT over_predicted THEN 1 ELSE 0 END) AS under_count
-      FROM prediction_accuracy
+      FROM prediction_accuracy pa
+      JOIN customers c ON c.id = pa.customer_id
+      WHERE c.tenant_id = ${tenantId}::uuid
     `);
     const stats = statsResult.rows[0];
 
-    // Per-customer breakdown
     const rows = await db.select({
       id: predictionAccuracyTable.id,
       customerId: predictionAccuracyTable.customerId,
@@ -376,18 +396,20 @@ router.get("/analytics/prediction-accuracy", requireAuth, async (_req, res) => {
       recordedAt: predictionAccuracyTable.recordedAt,
     }).from(predictionAccuracyTable)
       .leftJoin(customersTable, eq(predictionAccuracyTable.customerId, customersTable.id))
+      .where(eq(customersTable.tenantId, tenantId))
       .orderBy(desc(predictionAccuracyTable.recordedAt))
       .limit(100);
 
-    // Monthly MAE trend
     const monthlyTrendResult = await db.execute<{
       month: string; mae: string; record_count: string;
     }>(sql`
       SELECT
-        TO_CHAR(recorded_at, 'YYYY-MM') AS month,
-        ROUND(AVG(abs_deviation)::numeric, 2) AS mae,
+        TO_CHAR(pa.recorded_at, 'YYYY-MM') AS month,
+        ROUND(AVG(pa.abs_deviation)::numeric, 2) AS mae,
         COUNT(*) AS record_count
-      FROM prediction_accuracy
+      FROM prediction_accuracy pa
+      JOIN customers c ON c.id = pa.customer_id
+      WHERE c.tenant_id = ${tenantId}::uuid
       GROUP BY 1
       ORDER BY 1 ASC
     `);
