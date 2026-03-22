@@ -3,8 +3,9 @@ import { usersTable } from "./auth";
 
 export const invitationsTable = pgTable("invitations", {
   id: serial("id").primaryKey(),
-  email: varchar("email").notNull().unique(),
-  role: text("role", { enum: ["superadmin", "cx_manager", "cx_user"] })
+  // email uniqueness is now per (email, tenantId) — see Faz 5 migration in app.ts
+  email: varchar("email").notNull(),
+  role: text("role", { enum: ["superadmin", "tenant_admin", "cx_manager", "cx_user"] })
     .notNull()
     .default("cx_user"),
   invitedBy: varchar("invited_by").references(() => usersTable.id),

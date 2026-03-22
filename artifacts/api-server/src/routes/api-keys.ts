@@ -91,7 +91,7 @@ router.patch("/settings/api-keys/:id/toggle", requireTenantRole("tenant_admin"),
     const [updated] = await db
       .update(apiKeysTable)
       .set({ isActive: !key.isActive })
-      .where(eq(apiKeysTable.id, id))
+      .where(and(eq(apiKeysTable.id, id), eq(apiKeysTable.tenantId, tenantId)))
       .returning();
     res.json(updated);
   } catch (err) {

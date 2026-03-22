@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { customersTable, interactionsTable } from "@workspace/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { maskCustomer } from "../../utils/pii-mask";
+import { sanitizeError } from "../../lib/sanitize-error";
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.get("/", async (req, res) => {
     const result = masked ? customers.map((c) => maskCustomer(c)) : customers;
     res.json({ total: customers.length, customers: result, masked });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 
@@ -46,7 +47,7 @@ router.get("/lookup", async (req, res) => {
       .limit(20);
     res.json({ customer: maskCustomer(customer), interactions });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    res.status(500).json({ error: sanitizeError(err) });
   }
 });
 

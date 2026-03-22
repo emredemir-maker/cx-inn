@@ -231,9 +231,8 @@ router.post(
       return;
     }
 
-    // Map tenant role to the user-level role stored in invitationsTable
-    const invitationRole: "cx_manager" | "cx_user" =
-      role === "tenant_admin" || role === "cx_manager" ? "cx_manager" : "cx_user";
+    // Store the exact intended role in the invitation — no silent downgrade
+    const invitationRole = role as "tenant_admin" | "cx_manager" | "cx_user";
 
     try {
       // Verify tenant exists
@@ -258,10 +257,10 @@ router.post(
           invitedBy: req.user!.id,
         })
         .onConflictDoUpdate({
-          target: invitationsTable.email,
+          // Conflict on (email, tenantId) — same user re-invited to the same tenant
+          target: [invitationsTable.email, invitationsTable.tenantId],
           set: {
             role: invitationRole,
-            tenantId: id,
             invitedBy: req.user!.id,
             accepted: false,
             acceptedAt: null,
@@ -414,10 +413,10 @@ router.post(
           invitedBy: req.user!.id,
         })
         .onConflictDoUpdate({
-          target: invitationsTable.email,
+          // Conflict on (email, tenantId) — same user re-invited to the same tenant
+          target: [invitationsTable.email, invitationsTable.tenantId],
           set: {
             role: invitationRole,
-            tenantId,
             invitedBy: req.user!.id,
             accepted: false,
             acceptedAt: null,

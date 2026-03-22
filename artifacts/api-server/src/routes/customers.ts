@@ -8,7 +8,12 @@ import { sanitizeError } from "../lib/sanitize-error";
 
 const router: IRouter = Router();
 
-router.get("/customers", requireAuth, async (_req, res) => {
+router.get("/customers", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) {
+    res.status(400).json({ error: "Aktif tenant seçili değil" });
+    return;
+  }
   try {
     // Fetch customers + their best-matching AI segment in one query via LATERAL join
     const rows = await db.execute<{
@@ -44,6 +49,7 @@ router.get("/customers", requireAuth, async (_req, res) => {
         LIMIT 1
       ) matched ON true
       WHERE c.is_excluded = false
+        AND c.tenant_id = ${tenantId}::uuid
       ORDER BY c.name
     `);
 
@@ -67,7 +73,12 @@ router.get("/customers", requireAuth, async (_req, res) => {
 });
 
 // ─── CUSTOMER GROUPS (for campaign target picker) ────────────────────────────
-router.get("/customers/groups", requireAuth, async (_req, res) => {
+router.get("/customers/groups", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) {
+    res.status(400).json({ error: "Aktif tenant seçili değil" });
+    return;
+  }
   try {
     const statsResult = await db.execute<{
       total: string; high_churn: string; mid_churn: string; low_churn: string;
@@ -87,7 +98,8 @@ router.get("/customers/groups", requireAuth, async (_req, res) => {
         COUNT(*) FILTER (WHERE nps_score < 7 AND nps_score IS NOT NULL)::text as detractors,
         COUNT(*) FILTER (WHERE nps_score IS NULL)::text as no_nps
       FROM customers
-      WHERE is_excluded = false OR is_excluded IS NULL
+      WHERE (is_excluded = false OR is_excluded IS NULL)
+        AND tenant_id = ${tenantId}::uuid
     `);
     const stats = statsResult.rows[0];
 
@@ -96,6 +108,7 @@ router.get("/customers/groups", requireAuth, async (_req, res) => {
       FROM customers
       WHERE company IS NOT NULL AND company != ''
         AND (is_excluded = false OR is_excluded IS NULL)
+        AND tenant_id = ${tenantId}::uuid
       GROUP BY company
       ORDER BY COUNT(*) DESC
     `);
@@ -122,9 +135,16 @@ router.get("/customers/groups", requireAuth, async (_req, res) => {
 });
 
 router.get("/customers/:id", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) {
+    res.status(400).json({ error: "Aktif tenant seçili değil" });
+    return;
+  }
   try {
     const { id } = GetCustomerParams.parse({ id: Number(req.params.id) });
-    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+    const [customer] = await db.select().from(customersTable).where(
+      and(eq(customersTable.id, id), eq(customersTable.tenantId, tenantId))
+    );
     if (!customer) return res.status(404).json({ error: "Bulunamadı" });
 
     const interactions = await db.select().from(interactionsTable)

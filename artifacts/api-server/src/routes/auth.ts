@@ -42,7 +42,8 @@ async function upsertUser(decoded: {
   const firstName = nameParts[0] || null;
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
-  const isSuperadmin = !!SUPERADMIN_EMAIL && decoded.email === SUPERADMIN_EMAIL;
+  const isSuperadmin = !!SUPERADMIN_EMAIL &&
+    decoded.email?.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
 
   const baseData = {
     id: decoded.uid,
@@ -95,7 +96,8 @@ async function upsertUser(decoded: {
   // ── Create tenant_membership if invitation has a tenantId ─────────────────
   if (acceptedInvite?.tenantId) {
     const tenantRole =
-      invitedRole === "cx_manager" ? "cx_manager"
+      invitedRole === "tenant_admin" ? "tenant_admin"
+      : invitedRole === "cx_manager" ? "cx_manager"
       : invitedRole === "superadmin" ? "tenant_admin"
       : "cx_user";
     await db
@@ -253,10 +255,15 @@ router.post("/auth/switch-tenant", async (req: Request, res: Response) => {
     return;
   }
 
-  // Verify user has access to the requested tenant
-  const [membership] = await db
-    .select()
+  // Verify user has access to the requested tenant AND tenant is active
+  const [row] = await db
+    .select({
+      membershipId: tenantMembershipsTable.id,
+      membershipRole: tenantMembershipsTable.role,
+      tenantIsActive: tenantsTable.isActive,
+    })
     .from(tenantMembershipsTable)
+    .innerJoin(tenantsTable, eq(tenantsTable.id, tenantMembershipsTable.tenantId))
     .where(
       and(
         eq(tenantMembershipsTable.tenantId, tenantId),
@@ -264,10 +271,15 @@ router.post("/auth/switch-tenant", async (req: Request, res: Response) => {
       ),
     );
 
-  if (!membership) {
+  if (!row) {
     res.status(403).json({ error: "Bu tenant'a erişim yetkiniz yok" });
     return;
   }
+  if (!row.tenantIsActive) {
+    res.status(403).json({ error: "Bu tenant devre dışı bırakılmış" });
+    return;
+  }
+  const membership = { tenantId, role: row.membershipRole };
 
   // Patch the session record directly with the new tenant context
   const sid = getSessionId(req);

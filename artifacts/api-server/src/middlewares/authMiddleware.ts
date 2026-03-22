@@ -5,7 +5,7 @@ import {
   getSession,
 } from "../lib/auth";
 import { verifyFirebaseToken } from "../lib/firebase-admin";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, tenantMembershipsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { UserRole } from "@workspace/db";
 
@@ -85,6 +85,18 @@ export async function authMiddleware(
           profileImageUrl: dbUser.profileImageUrl,
           role: dbUser.role as UserRole,
         };
+        // Resolve tenantId for Bearer token requests (same as session path):
+        // if user has exactly one membership, auto-select it.
+        const memberships = await db
+          .select()
+          .from(tenantMembershipsTable)
+          .where(eq(tenantMembershipsTable.userId, dbUser.id));
+        if (memberships.length === 1) {
+          req.tenantId = memberships[0].tenantId;
+          req.tenantRole = memberships[0].role;
+        }
+        // Multiple memberships via Bearer token require tenant picker — tenantId stays null.
+        // Superadmin with no memberships is handled by tenantContextMiddleware.
       }
     } catch {
       // Token invalid — continue without auth (requireRole will return 401)

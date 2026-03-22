@@ -174,6 +174,47 @@ import { pool } from "@workspace/db";
     `);
 
     console.log("[startup] ✓ Faz 4 migration complete");
+
+    // ── Faz 5: Security hardening ──────────────────────────────────────────────
+    // 1. Replace the single-email unique constraint on invitations with a
+    //    composite (email, tenant_id) constraint so the same email can be
+    //    invited to multiple tenants independently.
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'invitations_email_unique'
+            AND conrelid = 'invitations'::regclass
+        ) THEN
+          ALTER TABLE invitations DROP CONSTRAINT invitations_email_unique;
+        END IF;
+      END $$
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS invitations_email_tenant_unique
+      ON invitations (email, tenant_id)
+    `);
+
+    // 2. Add tenant_admin to the invitations.role check constraint
+    await client.query(`
+      DO $$ BEGIN
+        -- Drop old check constraint if it doesn't include tenant_admin
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'invitations_role_check'
+            AND conrelid = 'invitations'::regclass
+        ) THEN
+          ALTER TABLE invitations DROP CONSTRAINT invitations_role_check;
+        END IF;
+      END $$
+    `);
+    await client.query(`
+      ALTER TABLE invitations
+      ADD CONSTRAINT invitations_role_check
+      CHECK (role IN ('superadmin', 'tenant_admin', 'cx_manager', 'cx_user'))
+    `);
+
+    console.log("[startup] ✓ Faz 5 migration complete");
   } catch (err) {
     console.error("[startup] Migration error:", err);
   } finally {
