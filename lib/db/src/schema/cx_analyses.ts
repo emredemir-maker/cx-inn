@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, real, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, real, text, timestamp, jsonb, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -17,6 +17,8 @@ export const cxAnalysesTable = pgTable("cx_analyses", {
   interactionIds: integer("interaction_ids").array(),
   model: text("model").notNull().default("gemini"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export const insertCxAnalysisSchema = createInsertSchema(cxAnalysesTable).omit({ id: true, createdAt: true });

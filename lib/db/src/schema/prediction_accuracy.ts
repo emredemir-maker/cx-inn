@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, real, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, real, text, boolean, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -18,6 +18,8 @@ export const predictionAccuracyTable = pgTable("prediction_accuracy", {
   overPredicted: boolean("over_predicted").notNull(),
   usedForLearning: boolean("used_for_learning").notNull().default(false),
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export const insertPredictionAccuracySchema = createInsertSchema(predictionAccuracyTable).omit({ id: true, recordedAt: true });

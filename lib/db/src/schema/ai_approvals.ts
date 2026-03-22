@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,6 +14,8 @@ export const aiApprovalsTable = pgTable("ai_approvals", {
   status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export const insertAiApprovalSchema = createInsertSchema(aiApprovalsTable).omit({ id: true, createdAt: true });

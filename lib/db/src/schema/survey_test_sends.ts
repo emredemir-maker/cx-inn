@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { surveysTable } from "./surveys";
@@ -14,6 +14,8 @@ export const surveyTestSendsTable = pgTable("survey_test_sends", {
   completedAt: timestamp("completed_at"),
   score: text("score"),
   feedback: text("feedback"),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export const insertSurveyTestSendSchema = createInsertSchema(surveyTestSendsTable).omit({ id: true });

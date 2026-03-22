@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, real, boolean, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +12,8 @@ export const segmentsTable = pgTable("segments", {
   sourceTags: text("source_tags").array(),
   aiGenerated: boolean("ai_generated").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export const insertSegmentSchema = createInsertSchema(segmentsTable).omit({ id: true, createdAt: true });

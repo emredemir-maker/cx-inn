@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const tagSynonymsTable = pgTable("tag_synonyms", {
   id: serial("id").primaryKey(),
@@ -6,6 +6,8 @@ export const tagSynonymsTable = pgTable("tag_synonyms", {
   synonyms: text("synonyms").array().notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export type TagSynonym = typeof tagSynonymsTable.$inferSelect;

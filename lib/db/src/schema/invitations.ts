@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
 export const invitationsTable = pgTable("invitations", {
@@ -11,6 +11,8 @@ export const invitationsTable = pgTable("invitations", {
   accepted: boolean("accepted").notNull().default(false),
   acceptedAt: timestamp("accepted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export type Invitation = typeof invitationsTable.$inferSelect;

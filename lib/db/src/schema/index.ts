@@ -21,3 +21,5 @@ export * from "./invitations";
 export * from "./role_permissions";
 export * from "./tag_synonyms";
 export * from "./excluded_domains";
+export * from "./tenants";
+export * from "./tenant_memberships";

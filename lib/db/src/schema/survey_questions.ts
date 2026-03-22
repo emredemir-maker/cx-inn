@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { surveysTable } from "./surveys";
@@ -15,6 +15,8 @@ export const surveyQuestionsTable = pgTable("survey_questions", {
   isRequired: boolean("is_required").notNull().default(true),
   skipLogic: jsonb("skip_logic").$type<SkipRule[]>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export type SkipRule = {

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, real, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, timestamp, integer, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -11,6 +11,8 @@ export const interactionsTable = pgTable("interactions", {
   sentiment: text("sentiment", { enum: ["positive", "neutral", "negative"] }).notNull().default("neutral"),
   score: real("score"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── multi-tenancy (Faz 1) ─────────────────────────────────────────────────
+  tenantId: uuid("tenant_id"),
 });
 
 export const insertInteractionSchema = createInsertSchema(interactionsTable).omit({ id: true, createdAt: true });

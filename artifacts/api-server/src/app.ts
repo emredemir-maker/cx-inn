@@ -6,16 +6,134 @@ import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
 import { pool } from "@workspace/db";
 
-// ── Runtime migration: ensure excluded_domains table exists ───────────────────
-pool.query(`
-  CREATE TABLE IF NOT EXISTS excluded_domains (
-    id         SERIAL PRIMARY KEY,
-    domain     TEXT NOT NULL UNIQUE,
-    reason     TEXT,
-    source     TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','auto')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )
-`).catch((err: Error) => console.error("[startup] excluded_domains migration error:", err));
+// ── Runtime migrations ─────────────────────────────────────────────────────────
+// We use runtime migrations instead of drizzle-kit push so the app is
+// self-contained and can bootstrap on a fresh DB without manual steps.
+// Each statement is idempotent (IF NOT EXISTS / ON CONFLICT DO NOTHING).
+(async () => {
+  const client = await pool.connect();
+  try {
+    // ── Faz 0: excluded_domains (legacy single-statement migration) ───────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS excluded_domains (
+        id         SERIAL PRIMARY KEY,
+        domain     TEXT NOT NULL UNIQUE,
+        reason     TEXT,
+        source     TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','auto')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // ── Faz 1: Multi-tenancy foundation ───────────────────────────────────────
+
+    // 1a. tenants table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name          TEXT NOT NULL,
+        slug          TEXT NOT NULL,
+        logo_url      TEXT,
+        primary_color TEXT DEFAULT '#6366f1',
+        industry      TEXT,
+        description   TEXT,
+        email         TEXT,
+        website       TEXT,
+        plan          TEXT NOT NULL DEFAULT 'standard'
+                      CHECK (plan IN ('standard','professional','enterprise')),
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'tenants_slug_unique'
+        ) THEN
+          ALTER TABLE tenants ADD CONSTRAINT tenants_slug_unique UNIQUE (slug);
+        END IF;
+      END $$
+    `);
+
+    // 1b. Seed default tenant — copy data from company_settings if it exists
+    await client.query(`
+      INSERT INTO tenants (id, name, slug, logo_url, primary_color, industry, description, email, website, plan)
+      SELECT
+        '00000000-0000-4000-8000-000000000001'::uuid,
+        COALESCE((SELECT company_name FROM company_settings LIMIT 1), 'CX-Inn'),
+        'default',
+        (SELECT logo_url      FROM company_settings LIMIT 1),
+        COALESCE((SELECT primary_color FROM company_settings LIMIT 1), '#6366f1'),
+        (SELECT industry     FROM company_settings LIMIT 1),
+        (SELECT description  FROM company_settings LIMIT 1),
+        (SELECT email        FROM company_settings LIMIT 1),
+        (SELECT website      FROM company_settings LIMIT 1),
+        'standard'
+      ON CONFLICT DO NOTHING
+    `);
+
+    // 1c. tenant_memberships table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenant_memberships (
+        id         SERIAL PRIMARY KEY,
+        tenant_id  UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role       TEXT NOT NULL DEFAULT 'cx_user'
+                   CHECK (role IN ('tenant_admin','cx_manager','cx_user')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (tenant_id, user_id)
+      )
+    `);
+
+    // 1d. Add tenant_id column to all 21 data tables (idempotent)
+    const tables = [
+      "customers", "interactions", "interaction_records",
+      "surveys", "survey_campaigns", "survey_responses",
+      "survey_questions", "survey_test_sends", "cx_analyses",
+      "segments", "triggers", "conversations", "messages",
+      "ai_approvals", "prediction_accuracy", "audit_logs",
+      "api_keys", "invitations", "role_permissions",
+      "tag_synonyms", "excluded_domains",
+    ];
+    for (const table of tables) {
+      await client.query(`
+        ALTER TABLE ${table}
+        ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id)
+      `);
+    }
+
+    // 1e. Backfill all existing rows with the default tenant
+    const DEFAULT_TENANT = "'00000000-0000-4000-8000-000000000001'";
+    for (const table of tables) {
+      await client.query(`
+        UPDATE ${table}
+        SET tenant_id = ${DEFAULT_TENANT}::uuid
+        WHERE tenant_id IS NULL
+      `);
+    }
+
+    // 1f. Seed existing users as members of the default tenant
+    await client.query(`
+      INSERT INTO tenant_memberships (tenant_id, user_id, role)
+      SELECT
+        '00000000-0000-4000-8000-000000000001'::uuid,
+        id,
+        CASE role
+          WHEN 'superadmin' THEN 'tenant_admin'
+          WHEN 'cx_manager' THEN 'cx_manager'
+          ELSE 'cx_user'
+        END
+      FROM users
+      ON CONFLICT DO NOTHING
+    `);
+
+    console.log("[startup] ✓ Faz 1 multi-tenancy migration complete");
+  } catch (err) {
+    console.error("[startup] Migration error:", err);
+  } finally {
+    client.release();
+  }
+})();
 
 const app: Express = express();
 
