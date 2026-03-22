@@ -11,6 +11,10 @@ const router: IRouter = Router();
 
 // ─── LIST ────────────────────────────────────────────────────────────────────
 router.get("/cx-analyses", requireAuth, async (req, res) => {
+  const tenantId = req.tenantId;
+  if (!tenantId) {
+    return res.status(400).json({ error: "Aktif tenant seçili değil" });
+  }
   try {
     const customerId = req.query.customerId ? Number(req.query.customerId) : null;
     const query = db
@@ -36,9 +40,18 @@ router.get("/cx-analyses", requireAuth, async (req, res) => {
 
     const rows = customerId
       ? await query.where(
-          and(eq(cxAnalysesTable.customerId, customerId), eq(customersTable.isExcluded, false)),
+          and(
+            eq(cxAnalysesTable.customerId, customerId),
+            eq(customersTable.isExcluded, false),
+            eq(customersTable.tenantId, tenantId),
+          ),
         )
-      : await query.where(eq(customersTable.isExcluded, false));
+      : await query.where(
+          and(
+            eq(customersTable.isExcluded, false),
+            eq(customersTable.tenantId, tenantId),
+          ),
+        );
 
     res.json(rows.map((r) => ({ ...r, createdAt: r.createdAt?.toISOString() })));
   } catch (err) {
@@ -76,13 +89,14 @@ router.post("/cx-analyses/bulk-analyze", requireAuth, async (req, res) => {
   const { customerIds } = req.body as { customerIds: number[] };
   if (!customerIds?.length) return res.status(400).json({ error: "customerIds zorunludur." });
 
-  // Capture userId before the response is sent (req may not be accessible in background)
+  // Capture userId and tenantId before the response is sent (req may not be accessible in background)
   const userId = getUserId(req.user);
+  const tenantId = req.tenantId ?? null;
 
   res.json({ message: "Toplu analiz başlatıldı.", total: customerIds.length });
 
   // Fire-and-forget — runs after response is sent
-  bulkAnalyzeCustomers(customerIds, userId).catch((err) =>
+  bulkAnalyzeCustomers(customerIds, userId, tenantId).catch((err) =>
     console.error("[cx_analyses] bulk analyze fatal error:", err),
   );
 });

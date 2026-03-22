@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Hash,
+  AlertTriangle,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ interface TagSynonymGroup {
 
 interface TagCount {
   tag: string;
-  cnt: string;
+  cnt: string; // comes as string from SQL COUNT
 }
 
 interface AiSuggestedGroup {
@@ -66,6 +67,41 @@ function SynonymBadge({ tag, onRemove }: { tag: string; onRemove?: () => void })
   );
 }
 
+function ConfirmInline({
+  message,
+  onConfirm,
+  onCancel,
+  danger = false,
+}: {
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 py-1 px-2 rounded-lg bg-slate-700/50 border border-slate-600/40">
+      <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${danger ? "text-red-400" : "text-amber-400"}`} />
+      <span className="text-xs text-slate-300 flex-1">{message}</span>
+      <button
+        onClick={onConfirm}
+        className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+          danger
+            ? "bg-red-600/80 hover:bg-red-500 text-white"
+            : "bg-amber-600/80 hover:bg-amber-500 text-white"
+        }`}
+      >
+        Evet
+      </button>
+      <button
+        onClick={onCancel}
+        className="px-2 py-0.5 rounded bg-slate-600/60 hover:bg-slate-500/60 text-slate-300 text-xs transition-colors"
+      >
+        İptal
+      </button>
+    </div>
+  );
+}
+
 function GroupCard({
   group,
   onUpdate,
@@ -84,6 +120,8 @@ function GroupCard({
   const [draftSynonyms, setDraftSynonyms] = useState<string[]>(group.synonyms);
   const [newSyn, setNewSyn] = useState("");
   const [showMerge, setShowMerge] = useState(false);
+  const [pendingMergeSourceId, setPendingMergeSourceId] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleSave = () => {
     onUpdate(group.id, { canonicalName: draftName.trim(), synonyms: draftSynonyms });
@@ -110,6 +148,9 @@ function GroupCard({
   };
 
   const otherGroups = allGroups.filter(g => g.id !== group.id);
+  const pendingMergeSource = pendingMergeSourceId
+    ? otherGroups.find(g => g.id === pendingMergeSourceId)
+    : null;
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700/40 p-4 space-y-3">
@@ -155,7 +196,7 @@ function GroupCard({
               </button>
               {otherGroups.length > 0 && (
                 <button
-                  onClick={() => setShowMerge(v => !v)}
+                  onClick={() => { setShowMerge(v => !v); setConfirmDelete(false); setPendingMergeSourceId(null); }}
                   className="p-1.5 rounded-lg bg-slate-700/60 text-slate-400 hover:text-amber-400 transition-colors"
                   title="Başka grupla birleştir"
                 >
@@ -163,7 +204,7 @@ function GroupCard({
                 </button>
               )}
               <button
-                onClick={() => onDelete(group.id)}
+                onClick={() => { setConfirmDelete(true); setShowMerge(false); setPendingMergeSourceId(null); }}
                 className="p-1.5 rounded-lg bg-slate-700/60 text-slate-400 hover:text-red-400 transition-colors"
                 title="Sil"
               >
@@ -173,6 +214,16 @@ function GroupCard({
           )}
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <ConfirmInline
+          message={`"${group.canonicalName}" grubu silinsin mi?`}
+          onConfirm={() => { onDelete(group.id); setConfirmDelete(false); }}
+          onCancel={() => setConfirmDelete(false)}
+          danger
+        />
+      )}
 
       {/* Synonyms */}
       <div>
@@ -211,27 +262,38 @@ function GroupCard({
 
       {/* Merge panel */}
       {showMerge && !editing && (
-        <div className="pt-2 border-t border-slate-700/40">
-          <p className="text-xs text-amber-400/80 mb-2">
+        <div className="pt-2 border-t border-slate-700/40 space-y-2">
+          <p className="text-xs text-amber-400/80">
             Başka bir grubu bu gruba birleştir (diğer grup silinir):
           </p>
-          <div className="flex flex-col gap-1">
-            {otherGroups.map(og => (
-              <button
-                key={og.id}
-                onClick={() => {
-                  onMergeIntoThis(group.id, og.id);
-                  setShowMerge(false);
-                }}
-                className="text-left px-3 py-1.5 bg-slate-700/40 hover:bg-amber-500/10 border border-slate-600/30 hover:border-amber-500/30 rounded-lg text-xs text-slate-300 hover:text-amber-300 transition-colors"
-              >
-                <span className="font-medium">{og.canonicalName}</span>
-                {og.synonyms.length > 0 && (
-                  <span className="text-slate-500 ml-1">+ {og.synonyms.length} eş anlamlı</span>
-                )}
-              </button>
-            ))}
-          </div>
+
+          {/* Merge confirmation */}
+          {pendingMergeSource ? (
+            <ConfirmInline
+              message={`"${pendingMergeSource.canonicalName}" bu gruba birleştirilsin mi?`}
+              onConfirm={() => {
+                onMergeIntoThis(group.id, pendingMergeSource.id);
+                setShowMerge(false);
+                setPendingMergeSourceId(null);
+              }}
+              onCancel={() => setPendingMergeSourceId(null)}
+            />
+          ) : (
+            <div className="flex flex-col gap-1">
+              {otherGroups.map(og => (
+                <button
+                  key={og.id}
+                  onClick={() => setPendingMergeSourceId(og.id)}
+                  className="text-left px-3 py-1.5 bg-slate-700/40 hover:bg-amber-500/10 border border-slate-600/30 hover:border-amber-500/30 rounded-lg text-xs text-slate-300 hover:text-amber-300 transition-colors"
+                >
+                  <span className="font-medium">{og.canonicalName}</span>
+                  {og.synonyms.length > 0 && (
+                    <span className="text-slate-500 ml-1">+ {og.synonyms.length} eş anlamlı</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -282,6 +344,8 @@ function AiSuggestionCard({
 // ─── Tag Counts Panel ─────────────────────────────────────────────────────────
 function TagCountsPanel({ groups }: { groups: TagSynonymGroup[] }) {
   const [open, setOpen] = useState(false);
+  const [ungroupedOnly, setUngroupedOnly] = useState(false);
+
   const { data: tagCounts } = useQuery<TagCount[]>({
     queryKey: ["/api/tag-taxonomy/tag-counts"],
     queryFn: () => apiFetch("/tag-taxonomy/tag-counts"),
@@ -289,6 +353,17 @@ function TagCountsPanel({ groups }: { groups: TagSynonymGroup[] }) {
   });
 
   const groupedTags = new Set(groups.flatMap(g => [g.canonicalName, ...g.synonyms]));
+
+  // Sort numerically by count (DB returns string), filter by toggle
+  const sortedCounts = tagCounts
+    ? [...tagCounts]
+        .sort((a, b) => Number(b.cnt) - Number(a.cnt))
+        .filter(tc => !ungroupedOnly || !groupedTags.has(tc.tag))
+    : [];
+
+  const ungroupedCount = tagCounts
+    ? tagCounts.filter(tc => !groupedTags.has(tc.tag)).length
+    : 0;
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700/40 overflow-hidden">
@@ -299,35 +374,56 @@ function TagCountsPanel({ groups }: { groups: TagSynonymGroup[] }) {
         <div className="flex items-center gap-2">
           <Hash className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-200">Etiket Kullanım Sayıları</span>
+          {tagCounts && ungroupedCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-xs font-medium">
+              {ungroupedCount} gruplandırılmamış
+            </span>
+          )}
         </div>
         {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 border-t border-slate-700/40 pt-3 max-h-72 overflow-y-auto space-y-1.5">
-          {!tagCounts ? (
-            <p className="text-xs text-slate-500">Yükleniyor…</p>
-          ) : tagCounts.length === 0 ? (
-            <p className="text-xs text-slate-500">Henüz etiket yok.</p>
-          ) : (
-            tagCounts.map(tc => (
-              <div
-                key={tc.tag}
-                className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-xs ${
-                  groupedTags.has(tc.tag)
-                    ? "bg-green-900/20 border border-green-700/20 text-green-300"
-                    : "bg-slate-700/30 border border-slate-700/30 text-slate-300"
-                }`}
-              >
-                <span className="font-medium truncate">{tc.tag}</span>
-                <span className="text-slate-500 shrink-0 ml-2">{tc.cnt}×</span>
-              </div>
-            ))
-          )}
-          {tagCounts && tagCounts.length > 0 && (
-            <p className="text-xs text-slate-600 pt-1">
+        <div className="px-4 pb-4 border-t border-slate-700/40 pt-3">
+          {/* Filter toggle */}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-slate-500">
               Yeşil = gruplandırılmış · Gri = henüz gruplandırılmamış
             </p>
-          )}
+            <button
+              onClick={() => setUngroupedOnly(v => !v)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-colors border ${
+                ungroupedOnly
+                  ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                  : "bg-slate-700/40 border-slate-600/30 text-slate-400 hover:text-slate-300"
+              }`}
+            >
+              <span>{ungroupedOnly ? "Tümünü Göster" : "Sadece Gruplandırılmamış"}</span>
+            </button>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto space-y-1.5">
+            {!tagCounts ? (
+              <p className="text-xs text-slate-500">Yükleniyor…</p>
+            ) : sortedCounts.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                {ungroupedOnly ? "Tüm etiketler gruplandırılmış!" : "Henüz etiket yok."}
+              </p>
+            ) : (
+              sortedCounts.map(tc => (
+                <div
+                  key={tc.tag}
+                  className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-xs ${
+                    groupedTags.has(tc.tag)
+                      ? "bg-green-900/20 border border-green-700/20 text-green-300"
+                      : "bg-slate-700/30 border border-slate-700/30 text-slate-300"
+                  }`}
+                >
+                  <span className="font-medium truncate">{tc.tag}</span>
+                  <span className="text-slate-500 shrink-0 ml-2">{Number(tc.cnt)}×</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

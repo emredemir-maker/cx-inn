@@ -215,6 +215,27 @@ import { pool } from "@workspace/db";
     `);
 
     console.log("[startup] ✓ Faz 5 migration complete");
+
+    // ── Faz 6: Tag taxonomy tenant isolation ──────────────────────────────────
+    // Drop the global unique constraint on canonical_name and replace with a
+    // per-tenant composite unique so each tenant can have its own vocabulary.
+    await client.query(`
+      ALTER TABLE tag_synonyms DROP CONSTRAINT IF EXISTS tag_synonyms_canonical_name_unique
+    `);
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'tag_synonyms_tenant_canonical_unique'
+            AND conrelid = 'tag_synonyms'::regclass
+        ) THEN
+          ALTER TABLE tag_synonyms
+            ADD CONSTRAINT tag_synonyms_tenant_canonical_unique
+            UNIQUE (tenant_id, canonical_name);
+        END IF;
+      END $$
+    `);
+    console.log("[startup] ✓ Faz 6 migration complete");
   } catch (err) {
     console.error("[startup] Migration error:", err);
   } finally {

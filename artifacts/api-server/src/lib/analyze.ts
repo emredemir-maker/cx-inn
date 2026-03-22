@@ -3,23 +3,7 @@ import { cxAnalysesTable, interactionRecordsTable, customersTable, tagSynonymsTa
 import { eq, desc, and } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { getLearningCorrections, markLearningUsed } from "./accuracy";
-
-// Build synonym → canonical map from the tag_synonyms table
-async function buildSynonymMap(): Promise<Map<string, string>> {
-  const groups = await db.select().from(tagSynonymsTable);
-  const map = new Map<string, string>();
-  for (const group of groups) {
-    for (const syn of group.synonyms) {
-      map.set(syn.toLowerCase(), group.canonicalName);
-    }
-  }
-  return map;
-}
-
-// Normalize a tag array against the synonym map
-function normalizeTags(tags: string[], synonymMap: Map<string, string>): string[] {
-  return Array.from(new Set(tags.map(t => synonymMap.get(t.toLowerCase()) ?? t)));
-}
+import { buildSynonymMap, normalizeTags } from "./tag-helpers";
 
 function stripPii(text: string): string {
   if (!text) return text;
@@ -57,9 +41,14 @@ export async function analyzeCustomer(customerId: number): Promise<void> {
   // Fetch past prediction corrections for this customer (learning data)
   const learningBlock = await getLearningCorrections(customerId);
 
-  // Fetch canonical tag vocabulary for consistent tagging
-  const synonymMap = await buildSynonymMap();
-  const canonicalTags = await db.select({ canonicalName: tagSynonymsTable.canonicalName, synonyms: tagSynonymsTable.synonyms }).from(tagSynonymsTable);
+  // Fetch canonical tag vocabulary for consistent tagging (scoped to tenant)
+  const synonymMap = await buildSynonymMap(customer.tenantId);
+  const canonicalTagsBase = db
+    .select({ canonicalName: tagSynonymsTable.canonicalName, synonyms: tagSynonymsTable.synonyms })
+    .from(tagSynonymsTable);
+  const canonicalTags = customer.tenantId
+    ? await canonicalTagsBase.where(eq(tagSynonymsTable.tenantId, customer.tenantId))
+    : await canonicalTagsBase;
   const canonicalVocabBlock = canonicalTags.length > 0
     ? `\nKANONİK ETİKET SÖZLÜĞÜ (bu etiketleri tercih et, yeni etiket oluşturmaktan kaçın):\n${canonicalTags.map(g => `- ${g.canonicalName}${g.synonyms.length ? ` (ayrıca: ${g.synonyms.join(", ")})` : ""}`).join("\n")}\n`
     : "";
@@ -122,10 +111,11 @@ Sadece JSON döndür, başka hiçbir şey yazma.`;
   if (parsed.interactionTags && typeof parsed.interactionTags === "object") {
     for (const [idStr, tags] of Object.entries(parsed.interactionTags)) {
       const id = Number(idStr);
-      if (id && Array.isArray(tags)) {
+      // Guard: only update interaction records that belong to this customer's tenant
+      if (id && Array.isArray(tags) && customer.tenantId) {
         const normalizedTags = normalizeTags(tags as string[], synonymMap);
         await db.update(interactionRecordsTable).set({ tags: normalizedTags })
-          .where(eq(interactionRecordsTable.id, id));
+          .where(and(eq(interactionRecordsTable.id, id), eq(interactionRecordsTable.tenantId, customer.tenantId)));
       }
     }
   }

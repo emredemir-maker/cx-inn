@@ -24,23 +24,7 @@ import { ai } from "@workspace/integrations-gemini-ai";
 import { getLearningCorrections, markLearningUsed } from "../lib/accuracy";
 import { refreshSegmentsForTags } from "./segment.service";
 import { writeAuditLog } from "../lib/audit";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function buildSynonymMap(): Promise<Map<string, string>> {
-  const groups = await db.select().from(tagSynonymsTable);
-  const map = new Map<string, string>();
-  for (const group of groups) {
-    for (const syn of group.synonyms) {
-      map.set(syn.toLowerCase(), group.canonicalName);
-    }
-  }
-  return map;
-}
-
-function normalizeTags(tags: string[], synonymMap: Map<string, string>): string[] {
-  return Array.from(new Set(tags.map((t) => synonymMap.get(t.toLowerCase()) ?? t)));
-}
+import { buildSynonymMap, normalizeTags } from "../lib/tag-helpers";
 
 function stripPii(text: string): string {
   if (!text) return text;
@@ -144,10 +128,13 @@ async function runAnalysis(
   const customer = custRows[0];
 
   const learningBlock = await getLearningCorrections(customerId);
-  const synonymMap = await buildSynonymMap();
-  const canonicalTags = await db
+  const synonymMap = await buildSynonymMap(customer.tenantId ?? null);
+  const canonicalTagsBase = db
     .select({ canonicalName: tagSynonymsTable.canonicalName, synonyms: tagSynonymsTable.synonyms })
     .from(tagSynonymsTable);
+  const canonicalTags = customer.tenantId
+    ? await canonicalTagsBase.where(eq(tagSynonymsTable.tenantId, customer.tenantId))
+    : await canonicalTagsBase;
   const canonicalVocabBlock =
     canonicalTags.length > 0
       ? `\nKANONİK ETİKET SÖZLÜĞÜ (bu etiketleri tercih et, yeni etiket oluşturmaktan kaçın):\n${canonicalTags.map((g) => `- ${g.canonicalName}${g.synonyms.length ? ` (ayrıca: ${g.synonyms.join(", ")})` : ""}`).join("\n")}\n`
@@ -170,15 +157,21 @@ async function runAnalysis(
   }
 
   // Update interaction tags (normalized)
+  // Guard: always scope UPDATE to tenant to prevent AI-hallucinated IDs writing to other tenants
   if (parsed.interactionTags && typeof parsed.interactionTags === "object") {
     for (const [idStr, tags] of Object.entries(parsed.interactionTags)) {
       const id = Number(idStr);
-      if (id && Array.isArray(tags)) {
+      if (id && Array.isArray(tags) && customer.tenantId) {
         const normalizedTags = normalizeTags(tags as string[], synonymMap);
         await db
           .update(interactionRecordsTable)
           .set({ tags: normalizedTags })
-          .where(eq(interactionRecordsTable.id, id));
+          .where(
+            and(
+              eq(interactionRecordsTable.id, id),
+              eq(interactionRecordsTable.tenantId, customer.tenantId),
+            ),
+          );
       }
     }
     // Async segment refresh — does not block the response
@@ -448,12 +441,18 @@ async function runAndPersistBatch(
       const allNewTags: string[] = [];
       for (const [idStr, tags] of Object.entries(result.interactionTags)) {
         const id = Number(idStr);
-        if (id && Array.isArray(tags)) {
+        // Guard: scope UPDATE to customer's tenant to prevent AI-hallucinated IDs writing elsewhere
+        if (id && Array.isArray(tags) && customer.tenantId) {
           const normalizedTags = normalizeTags(tags as string[], synonymMap);
           await db
             .update(interactionRecordsTable)
             .set({ tags: normalizedTags })
-            .where(eq(interactionRecordsTable.id, id));
+            .where(
+              and(
+                eq(interactionRecordsTable.id, id),
+                eq(interactionRecordsTable.tenantId, customer.tenantId),
+              ),
+            );
           allNewTags.push(...normalizedTags);
         }
       }
@@ -492,12 +491,16 @@ async function runAndPersistBatch(
 export async function bulkAnalyzeCustomers(
   customerIds: number[],
   userId = "system",
+  tenantId?: string | null,
 ): Promise<void> {
-  // Shared resources fetched once for the entire run
-  const synonymMap = await buildSynonymMap();
-  const canonicalTags = await db
+  // Shared resources fetched once for the entire run (scoped to tenant when available)
+  const synonymMap = await buildSynonymMap(tenantId ?? null);
+  const canonicalTagsBase = db
     .select({ canonicalName: tagSynonymsTable.canonicalName, synonyms: tagSynonymsTable.synonyms })
     .from(tagSynonymsTable);
+  const canonicalTags = tenantId
+    ? await canonicalTagsBase.where(eq(tagSynonymsTable.tenantId, tenantId))
+    : await canonicalTagsBase;
   const canonicalVocabBlock =
     canonicalTags.length > 0
       ? `\nKANONİK ETİKET SÖZLÜĞÜ (bu etiketleri tercih et, yeni etiket oluşturmaktan kaçın):\n` +
